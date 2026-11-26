@@ -598,6 +598,16 @@ export const App: React.FC = () => {
                 setQueue((prev) => [...prev, track]);
                 notify(`+ ${track.title}`);
               }}
+              playlists={playlists}
+              onAddToPlaylist={async (playlistId, track) => {
+                try {
+                  await api.addTrackToPlaylist(playlistId, track);
+                  await refreshLibrary();
+                  notify(`+ ${track.title}`);
+                } catch (err) {
+                  notify(String(err), "error");
+                }
+              }}
               onSelectView={setActiveView}
               onSelectSourceFilter={(src) => {
                 setSelectedPlaylistId(null);

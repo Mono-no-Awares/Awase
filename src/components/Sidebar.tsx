@@ -49,7 +49,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [draftName, setDraftName] = useState("");
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const [playlistsOpen, setPlaylistsOpen] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const t = TRANSLATIONS[language];
+
+  React.useEffect(() => {
+    if (!confirmDeleteId) return;
+    const id = window.setTimeout(() => setConfirmDeleteId(null), 3000);
+    return () => window.clearTimeout(id);
+  }, [confirmDeleteId]);
 
   const navItems: Array<{
     id: ActiveView;
@@ -256,20 +263,37 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <span className="truncate">{pl.name}</span>
                       </span>
                       <div className="flex items-center gap-1 shrink-0">
-                        <span className="text-xs font-medium text-slate-400 tabular-nums group-hover:hidden">
+                        <span
+                          className={`text-xs font-medium text-slate-400 tabular-nums ${
+                            confirmDeleteId === pl.id ? "hidden" : "group-hover:hidden"
+                          }`}
+                        >
                           {pl.trackCount}
                         </span>
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            onDeletePlaylist(pl.id);
+                            if (confirmDeleteId !== pl.id) {
+                              setConfirmDeleteId(pl.id);
+                            } else {
+                              setConfirmDeleteId(null);
+                              onDeletePlaylist(pl.id);
+                            }
                           }}
                           title={t.deletePlaylist}
                           aria-label={t.deletePlaylist}
-                          className="hidden group-hover:flex p-1 rounded-md text-slate-400 hover:text-rose-400 hover:bg-rose-500/15 transition-colors cursor-pointer"
+                          className={`rounded-md transition-colors cursor-pointer ${
+                            confirmDeleteId === pl.id
+                              ? "flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold bg-rose-500/25 text-rose-200 border border-rose-500/40"
+                              : "hidden group-hover:flex p-1 text-slate-400 hover:text-rose-400 hover:bg-rose-500/15"
+                          }`}
                         >
-                          <IconTrash size={13} />
+                          {confirmDeleteId === pl.id ? (
+                            <span>{language === "ru" ? "Удалить?" : "Delete?"}</span>
+                          ) : (
+                            <IconTrash size={13} />
+                          )}
                         </button>
                       </div>
                     </div>

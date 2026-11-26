@@ -72,6 +72,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [confirmClearAll, setConfirmClearAll] = useState(false);
+  const [confirmDeletePlaylist, setConfirmDeletePlaylist] = useState(false);
 
   const t = TRANSLATIONS[language];
 
@@ -80,6 +81,16 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     const id = window.setTimeout(() => setConfirmClearAll(false), 3000);
     return () => window.clearTimeout(id);
   }, [confirmClearAll]);
+
+  useEffect(() => {
+    setConfirmDeletePlaylist(false);
+  }, [selectedPlaylist?.id]);
+
+  useEffect(() => {
+    if (!confirmDeletePlaylist) return;
+    const id = window.setTimeout(() => setConfirmDeletePlaylist(false), 3000);
+    return () => window.clearTimeout(id);
+  }, [confirmDeletePlaylist]);
 
   const handleSortChange = (field: SortField) => {
     if (sortField === field) {
@@ -164,11 +175,28 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
           {selectedPlaylist && onDeletePlaylist && (
             <button
               type="button"
-              onClick={() => onDeletePlaylist(selectedPlaylist.id)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/35 text-xs font-medium text-rose-200 transition-all active:scale-95 cursor-pointer"
+              onClick={() => {
+                if (!confirmDeletePlaylist) {
+                  setConfirmDeletePlaylist(true);
+                } else {
+                  setConfirmDeletePlaylist(false);
+                  onDeletePlaylist(selectedPlaylist.id);
+                }
+              }}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full border text-xs font-medium transition-all active:scale-95 cursor-pointer ${
+                confirmDeletePlaylist
+                  ? "bg-rose-500/35 hover:bg-rose-500/45 border-rose-400 text-white"
+                  : "bg-rose-500/15 hover:bg-rose-500/25 border-rose-500/35 text-rose-200"
+              }`}
             >
               <IconTrash size={14} />
-              <span>{t.deletePlaylist}</span>
+              <span>
+                {confirmDeletePlaylist
+                  ? language === "ru"
+                    ? "Точно удалить?"
+                    : "Confirm delete?"
+                  : t.deletePlaylist}
+              </span>
             </button>
           )}
 

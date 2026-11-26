@@ -3,6 +3,7 @@ import type {
   ActiveView,
   AppLanguage,
   AudioTelemetry,
+  Playlist,
   SourceKind,
   SourceStatus,
   Track,
@@ -32,6 +33,8 @@ interface StageViewProps {
   onTogglePlay: () => void;
   onToggleLike: (trackId: string) => void;
   onQueueTrack: (track: Track) => void;
+  playlists?: Playlist[];
+  onAddToPlaylist?: (playlistId: string, track: Track) => void;
   onSelectView: (view: ActiveView) => void;
   onSelectSourceFilter: (source: SourceKind) => void;
   onAddLocalFolder: () => void;
@@ -49,6 +52,8 @@ export const StageView: React.FC<StageViewProps> = ({
   onTogglePlay,
   onToggleLike,
   onQueueTrack,
+  playlists = [],
+  onAddToPlaylist,
   onSelectView,
   onSelectSourceFilter,
   onAddLocalFolder,
@@ -251,6 +256,8 @@ export const StageView: React.FC<StageViewProps> = ({
           onPlayTrack={onPlayTrack}
           onToggleLike={onToggleLike}
           onQueueTrack={onQueueTrack}
+          playlists={playlists}
+          onAddToPlaylist={onAddToPlaylist}
           emptyTitle={t.emptyLibraryTitle}
           emptySubtitle={t.emptyLibrarySubtitle}
         />

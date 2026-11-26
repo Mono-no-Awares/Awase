@@ -447,16 +447,32 @@ pub async fn resolve_and_download(
         let _ = std::fs::remove_file(&old_m4a);
     }
 
-    let resp = client
+    let mut active_cid = client_id.to_string();
+    let mut resp = client
         .get(format!("{}/tracks/{}", SC_API, external_id))
-        .query(&[("client_id", client_id)])
+        .query(&[("client_id", active_cid.as_str())])
         .send()
         .await
         .map_err(|e| e.to_string())?;
+    if resp.status().as_u16() == 401 || resp.status().as_u16() == 403 {
+        if let Ok(fresh_cid) = resolve_client_id(client, None).await {
+            active_cid = fresh_cid;
+            resp = client
+                .get(format!("{}/tracks/{}", SC_API, external_id))
+                .query(&[("client_id", active_cid.as_str())])
+                .send()
+                .await
+                .map_err(|e| e.to_string())?;
+        }
+    }
     if !resp.status().is_success() {
         return Err(format!("SoundCloud track HTTP {}", resp.status()));
     }
     let json: Value = resp.json().await.map_err(|e| e.to_string())?;
+    let track_auth = json
+        .get("track_authorization")
+        .and_then(|v| v.as_str())
+        .map(str::to_string);
     let transcodings = json
         .get("media")
         .and_then(|m| m.get("transcodings"))
@@ -496,52 +512,92 @@ pub async fn resolve_and_download(
         proto == Some("hls") && mime.contains("mp4")
     });
 
-    let chosen = progressive
-        .or(hls_mpeg)
-        .or(hls_mp4)
-        .or_else(|| {
-            transcodings.iter().find(|t| {
-                let p = t
-                    .get("format")
-                    .and_then(|f| f.get("protocol"))
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
-                !p.contains("encrypted")
-            })
-        })
-        .ok_or_else(|| "Track is DRM-protected on SoundCloud".to_string())?;
+    let mut candidates: Vec<&Value> = Vec::new();
+    for t in [progressive, hls_mpeg, hls_mp4].into_iter().flatten() {
+        if !candidates.iter().any(|c| c.get("url") == t.get("url")) {
+            candidates.push(t);
+        }
+    }
+    for t in transcodings {
+        let p = t
+            .get("format")
+            .and_then(|f| f.get("protocol"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        if !p.contains("encrypted") && !candidates.iter().any(|c| c.get("url") == t.get("url")) {
+            candidates.push(t);
+        }
+    }
+    if candidates.is_empty() {
+        return Err("Track is DRM-protected on SoundCloud".to_string());
+    }
 
-    let is_hls = chosen
-        .get("format")
-        .and_then(|f| f.get("protocol"))
-        .and_then(|p| p.as_str())
-        == Some("hls");
-    let mime = chosen
-        .get("format")
-        .and_then(|f| f.get("mime_type"))
-        .and_then(|m| m.as_str())
-        .unwrap_or("");
-    let ext = if mime.contains("mp4") { "m4a" } else { "mp3" };
+    let mut chosen_meta: Option<(bool, &'static str, String)> = None;
+    let mut last_err = String::from("Missing final SoundCloud stream URL");
+    let mut refreshed_cid = false;
 
-    let stream_api = chosen
-        .get("url")
-        .and_then(|u| u.as_str())
-        .ok_or_else(|| "Missing transcoding URL".to_string())?;
+    for chosen in candidates {
+        let is_hls = chosen
+            .get("format")
+            .and_then(|f| f.get("protocol"))
+            .and_then(|p| p.as_str())
+            == Some("hls");
+        let mime = chosen
+            .get("format")
+            .and_then(|f| f.get("mime_type"))
+            .and_then(|m| m.as_str())
+            .unwrap_or("");
+        let ext = if mime.contains("mp4") { "m4a" } else { "mp3" };
+        let Some(stream_api) = chosen.get("url").and_then(|u| u.as_str()) else {
+            continue;
+        };
 
-    let resolved: Value = client
-        .get(stream_api)
-        .query(&[("client_id", client_id)])
-        .send()
-        .await
-        .map_err(|e| e.to_string())?
-        .json()
-        .await
-        .map_err(|e| e.to_string())?;
+        let mut params = vec![("client_id", active_cid.as_str())];
+        if let Some(ref auth) = track_auth {
+            params.push(("track_authorization", auth.as_str()));
+        }
 
-    let final_url = resolved
-        .get("url")
-        .and_then(|u| u.as_str())
-        .ok_or_else(|| "Missing final SoundCloud stream URL".to_string())?;
+        let mut s_resp = client
+            .get(stream_api)
+            .query(&params)
+            .send()
+            .await
+            .map_err(|e| e.to_string())?;
+
+        if (s_resp.status().as_u16() == 401 || s_resp.status().as_u16() == 403) && !refreshed_cid {
+            if let Ok(fresh_cid) = resolve_client_id(client, None).await {
+                refreshed_cid = true;
+                active_cid = fresh_cid;
+                let mut retry_params = vec![("client_id", active_cid.as_str())];
+                if let Some(ref auth) = track_auth {
+                    retry_params.push(("track_authorization", auth.as_str()));
+                }
+                s_resp = client
+                    .get(stream_api)
+                    .query(&retry_params)
+                    .send()
+                    .await
+                    .map_err(|e| e.to_string())?;
+            }
+        }
+
+        let status = s_resp.status();
+        let body = s_resp.text().await.unwrap_or_default();
+        if !status.is_success() {
+            last_err = format!("SoundCloud stream HTTP {}: {}", status, body.chars().take(160).collect::<String>());
+            continue;
+        }
+        if let Ok(resolved) = serde_json::from_str::<Value>(&body) {
+            if let Some(url) = resolved.get("url").and_then(|u| u.as_str()) {
+                chosen_meta = Some((is_hls, ext, url.to_string()));
+                break;
+            }
+        }
+        last_err = format!("Missing final SoundCloud stream URL ({})", body.chars().take(120).collect::<String>());
+    }
+
+    let (is_hls, ext, final_url) = chosen_meta.ok_or(last_err)?;
+    let final_url = final_url.as_str();
 
     let out_path = cache_dir.join(format!("{}.{}", safe_id, ext));
     let tmp_path = cache_dir.join(format!("{}.{}.tmp", safe_id, ext));

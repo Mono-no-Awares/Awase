@@ -775,7 +775,7 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
                   </div>
                   <div className="min-w-0">
                     <div className="text-xs font-medium text-white">{t.gamingModeLabel}</div>
-                    <div className="text-[11px] text-slate-400 truncate">{t.gamingModeDesc}</div>
+                    <div className="text-[11px] text-slate-400 leading-snug">{t.gamingModeDesc}</div>
                   </div>
                 </div>
                 <button
@@ -801,10 +801,10 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
               </div>
 
               <div className="pt-2 border-t border-white/[0.08] flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-xs font-medium text-white">{t.discordRpcLabel}</div>
-                  <div className="text-[11px] text-slate-300 truncate">{t.discordRpcDesc}</div>
-                </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium text-white">{t.discordRpcLabel}</div>
+                    <div className="text-[11px] text-slate-300 leading-snug">{t.discordRpcDesc}</div>
+                  </div>
                 <button
                   type="button"
                   role="switch"
@@ -816,7 +816,7 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
                     })
                   }
                   className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 flex items-center shrink-0 cursor-pointer ${
-                    preferences.discordRpc ? "bg-indigo-400" : "bg-white/[0.18]"
+                    preferences.discordRpc ? "bg-cyanpulse" : "bg-white/[0.18]"
                   }`}
                 >
                   <span

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { AppLanguage, Playlist, Track } from "../types";
 import type { CoverPalette } from "../lib/colorExtract";
 import { TRANSLATIONS } from "../lib/i18n";
@@ -61,7 +62,12 @@ export const TrackList: React.FC<TrackListProps> = ({
   emptySubtitle,
 }) => {
   const t = TRANSLATIONS[language];
-  const [menuTrackId, setMenuTrackId] = useState<string | null>(null);
+  const [menuState, setMenuState] = useState<{
+    track: Track;
+    top: number;
+    left: number;
+    openUp: boolean;
+  } | null>(null);
   const [addedKey, setAddedKey] = useState<string | null>(null);
   const [winRange, setWinRange] = useState<{ start: number; end: number }>({ start: 0, end: 50 });
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -105,22 +111,30 @@ export const TrackList: React.FC<TrackListProps> = ({
   }, [tracks.length, virtualize]);
 
   useEffect(() => {
-    if (!menuTrackId) return;
+    if (!menuState) return;
     const onPointerDown = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuTrackId(null);
+        setMenuState(null);
       }
     };
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setMenuTrackId(null);
+      if (e.key === "Escape") setMenuState(null);
+    };
+    const onScroll = (e: Event) => {
+      if (menuRef.current && e.target instanceof Node && menuRef.current.contains(e.target)) {
+        return;
+      }
+      setMenuState(null);
     };
     window.addEventListener("mousedown", onPointerDown);
     window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("scroll", onScroll, true);
     return () => {
       window.removeEventListener("mousedown", onPointerDown);
       window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("scroll", onScroll, true);
     };
-  }, [menuTrackId]);
+  }, [menuState]);
 
   if (tracks.length === 0) {
     return (
@@ -148,7 +162,7 @@ export const TrackList: React.FC<TrackListProps> = ({
 
   return (
     <div ref={listRef} className="awase-card rounded-2xl overflow-visible">
-      <div className="grid grid-cols-[44px_minmax(220px,2fr)_minmax(140px,1.2fr)_124px_64px] items-center px-4 py-2.5 border-b border-white/[0.07] text-xs font-medium text-slate-400">
+      <div className="grid grid-cols-[44px_minmax(220px,2fr)_minmax(140px,1.2fr)_140px_64px] items-center px-4 py-2.5 border-b border-white/[0.07] text-xs font-medium text-slate-400">
         <button
           type="button"
           onClick={() => onChangeSort?.("added")}
@@ -201,7 +215,7 @@ export const TrackList: React.FC<TrackListProps> = ({
                 }
               }}
               style={{ height: ROW_H }}
-              className={`awase-track-row group grid grid-cols-[44px_minmax(220px,2fr)_minmax(140px,1.2fr)_124px_64px] items-center px-4 text-xs transition-colors duration-150 last:rounded-b-2xl cursor-pointer ${
+              className={`awase-track-row group grid grid-cols-[44px_minmax(220px,2fr)_minmax(140px,1.2fr)_140px_64px] items-center px-4 text-xs transition-colors duration-150 last:rounded-b-2xl cursor-pointer ${
                 isSelected
                   ? "bg-cyanpulse/12"
                   : active
@@ -285,7 +299,7 @@ export const TrackList: React.FC<TrackListProps> = ({
                 {track.album || "—"}
               </div>
 
-              <div className="flex items-center justify-end gap-1 w-[124px] pr-2">
+              <div className="flex items-center justify-end gap-1 w-[140px] pr-2">
                 <button
                   type="button"
                   onClick={(e) => {
@@ -315,92 +329,50 @@ export const TrackList: React.FC<TrackListProps> = ({
                   <IconPlus size={16} />
                 </button>
 
-                <div
-                  className="relative w-8 flex items-center justify-center"
-                  ref={menuTrackId === track.id ? menuRef : undefined}
-                >
-                  {onRemoveFromPlaylist ? (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onRemoveFromPlaylist(track);
-                      }}
-                      title={t.removeFromPlaylist}
-                      aria-label={t.removeFromPlaylist}
-                      className="w-8 h-8 flex items-center justify-center rounded-full text-slate-300 opacity-0 group-hover:opacity-100 hover:text-rose-400 hover:bg-rose-500/15 transition-all active:scale-90 cursor-pointer"
-                    >
-                      <IconMinus size={16} />
-                    </button>
-                  ) : (
-                    playlists.length > 0 &&
-                    onAddToPlaylist && (
-                      <>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setMenuTrackId((prev) => (prev === track.id ? null : track.id));
-                        }}
-                        title={t.addToPlaylist}
-                        aria-label={t.addToPlaylist}
-                        className={`w-8 h-8 flex items-center justify-center rounded-full transition-all active:scale-90 cursor-pointer ${
-                          menuTrackId === track.id
-                            ? "opacity-100 bg-white/[0.14] text-white border border-white/[0.15]"
-                            : "text-slate-300 opacity-0 group-hover:opacity-100 hover:text-white hover:bg-white/[0.09]"
-                        }`}
-                      >
-                        <IconPlaylistAdd size={16} />
-                      </button>
+                {onAddToPlaylist && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (menuState?.track.id === track.id) {
+                        setMenuState(null);
+                        return;
+                      }
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const openUp = window.innerHeight - rect.bottom < 250;
+                      setMenuState({
+                        track,
+                        top: openUp ? rect.top - 8 : rect.bottom + 8,
+                        left: Math.max(12, rect.right - 224),
+                        openUp,
+                      });
+                    }}
+                    title={t.addToPlaylist}
+                    aria-label={t.addToPlaylist}
+                    className={`w-8 h-8 flex items-center justify-center rounded-full transition-all active:scale-90 cursor-pointer ${
+                      menuState?.track.id === track.id
+                        ? "opacity-100 bg-white/[0.14] text-white border border-white/[0.15]"
+                        : "text-slate-300 opacity-0 group-hover:opacity-100 hover:text-white hover:bg-white/[0.09]"
+                    }`}
+                  >
+                    <IconPlaylistAdd size={16} />
+                  </button>
+                )}
 
-                      {menuTrackId === track.id && (
-                        <div
-                          onClick={(e) => e.stopPropagation()}
-                          className="awase-menu-pop absolute right-0 top-full mt-2 z-50 w-56 rounded-2xl awase-glass border border-white/[0.14] shadow-[0_24px_48px_rgba(0,0,0,0.7)] overflow-hidden"
-                        >
-                          <div className="px-3.5 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400 border-b border-white/[0.07]">
-                            {t.addToPlaylist}
-                          </div>
-                          <div className="max-h-56 overflow-y-auto awase-scroll p-1.5 space-y-0.5">
-                            {playlists.map((pl) => {
-                              const justAdded = addedKey === `${track.id}:${pl.id}`;
-                              return (
-                                <button
-                                  key={pl.id}
-                                  type="button"
-                                  onClick={() => {
-                                    onAddToPlaylist(pl.id, track);
-                                    setAddedKey(`${track.id}:${pl.id}`);
-                                    window.setTimeout(() => {
-                                      setAddedKey(null);
-                                      setMenuTrackId(null);
-                                    }, 320);
-                                  }}
-                                  className="w-full flex items-center justify-between gap-2.5 px-2.5 py-2 rounded-xl text-left text-xs text-slate-200 hover:text-white hover:bg-white/[0.09] transition-all active:scale-[0.98] cursor-pointer"
-                                >
-                                  <span className="flex items-center gap-2.5 min-w-0">
-                                    <span className="w-6 h-6 rounded-lg bg-white/[0.06] flex items-center justify-center shrink-0 text-slate-300">
-                                      <IconLibrary size={13} />
-                                    </span>
-                                    <span className="truncate font-medium">{pl.name}</span>
-                                  </span>
-                                  {justAdded ? (
-                                    <IconCheck size={14} className="text-emerald-400 shrink-0" />
-                                  ) : (
-                                    <span className="text-[11px] text-slate-400 tabular-nums shrink-0">
-                                      {pl.trackCount}
-                                    </span>
-                                  )}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                      </>
-                    )
-                  )}
-                </div>
+                {onRemoveFromPlaylist && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRemoveFromPlaylist(track);
+                    }}
+                    title={t.removeFromPlaylist}
+                    aria-label={t.removeFromPlaylist}
+                    className="w-8 h-8 flex items-center justify-center rounded-full text-slate-300 opacity-0 group-hover:opacity-100 hover:text-rose-400 hover:bg-rose-500/15 transition-all active:scale-90 cursor-pointer"
+                  >
+                    <IconMinus size={16} />
+                  </button>
+                )}
               </div>
 
               <div className="text-right text-xs font-medium text-slate-400 tabular-nums">
@@ -411,6 +383,67 @@ export const TrackList: React.FC<TrackListProps> = ({
         })}
         {bottomPad > 0 && <div style={{ height: bottomPad }} />}
       </div>
+
+      {menuState &&
+        onAddToPlaylist &&
+        createPortal(
+          <div
+            ref={menuRef}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: "fixed",
+              top: menuState.top,
+              left: menuState.left,
+              transform: menuState.openUp ? "translateY(-100%)" : "none",
+            }}
+            className="awase-menu-pop z-[999] w-56 rounded-2xl bg-[#101217]/95 backdrop-blur-2xl border border-white/[0.16] shadow-[0_24px_48px_rgba(0,0,0,0.85)] overflow-hidden"
+          >
+            <div className="px-3.5 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-300 border-b border-white/[0.08]">
+              {t.addToPlaylist}
+            </div>
+            <div className="max-h-56 overflow-y-auto awase-scroll p-1.5 space-y-0.5">
+              {playlists.length === 0 ? (
+                <div className="px-3 py-3 text-center text-xs text-slate-400">
+                  {language === "ru" ? "Плейлистов пока нет" : "No playlists yet"}
+                </div>
+              ) : (
+                playlists.map((pl) => {
+                const justAdded = addedKey === `${menuState.track.id}:${pl.id}`;
+                return (
+                  <button
+                    key={pl.id}
+                    type="button"
+                    onClick={() => {
+                      onAddToPlaylist(pl.id, menuState.track);
+                      setAddedKey(`${menuState.track.id}:${pl.id}`);
+                      window.setTimeout(() => {
+                        setAddedKey(null);
+                        setMenuState(null);
+                      }, 320);
+                    }}
+                    className="w-full flex items-center justify-between gap-2.5 px-2.5 py-2 rounded-xl text-left text-xs text-slate-200 hover:text-white hover:bg-white/[0.1] transition-all active:scale-[0.98] cursor-pointer"
+                  >
+                    <span className="flex items-center gap-2.5 min-w-0">
+                      <span className="w-6 h-6 rounded-lg bg-white/[0.07] flex items-center justify-center shrink-0 text-slate-300">
+                        <IconLibrary size={13} />
+                      </span>
+                      <span className="truncate font-medium">{pl.name}</span>
+                    </span>
+                    {justAdded ? (
+                      <IconCheck size={14} className="text-emerald-400 shrink-0" />
+                    ) : (
+                      <span className="text-[11px] text-slate-400 tabular-nums shrink-0">
+                        {pl.trackCount}
+                      </span>
+                    )}
+                  </button>
+                );
+              })
+              )}
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

@@ -125,7 +125,17 @@ pub fn update_presence(
         "assets": {
             "large_text": album.filter(|a| !a.is_empty()).unwrap_or("Awase Player"),
             "small_text": format!("Awase · {}", source)
-        }
+        },
+        "buttons": [
+            {
+                "label": "Download Awase",
+                "url": "https://github.com/Mono-no-Awares/Awase/releases"
+            },
+            {
+                "label": "GitHub",
+                "url": "https://github.com/Mono-no-Awares/Awase"
+            }
+        ]
     });
 
     if let Some(url) = cover_url.filter(|u| u.starts_with("https://") && u.len() < 256) {

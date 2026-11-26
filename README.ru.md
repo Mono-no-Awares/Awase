@@ -20,9 +20,9 @@
 
 ## Превью
 
-| Резонанс — Аура | Резонанс — Шёлк |
+| Резонанс — Аура | Полноэкранный Lyrics |
 | :---: | :---: |
-| ![Awase Резонанс — Аура](assets/resonance-aura-v2.png) | ![Awase Резонанс — Шёлк](assets/resonance-silk-v2.png) |
+| ![Awase Резонанс — Аура](assets/resonance-aura-v2.png) | ![Awase Полноэкранный Lyrics](assets/lyrics-v2.png) |
 | **Коллекция** | **Настройки и Эквалайзер** |
 | ![Awase Коллекция](assets/library-v2.png) | ![Awase Настройки и Эквалайзер](assets/settings-v2.png) |
 

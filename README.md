@@ -20,9 +20,9 @@
 
 ## Preview
 
-| Resonance — Aura | Resonance — Silk |
+| Resonance — Aura | Fullscreen Lyrics |
 | :---: | :---: |
-| ![Awase Resonance — Aura](assets/resonance-aura-v2.png) | ![Awase Resonance — Silk](assets/resonance-silk-v2.png) |
+| ![Awase Resonance — Aura](assets/resonance-aura-v2.png) | ![Awase Fullscreen Lyrics](assets/lyrics-v2.png) |
 | **Library** | **Settings & Equalizer** |
 | ![Awase Library](assets/library-v2.png) | ![Awase Settings & Equalizer](assets/settings-v2.png) |
 

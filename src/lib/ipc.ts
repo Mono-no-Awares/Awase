@@ -8,6 +8,7 @@ import type {
   SourceKind,
   SourceStatus,
   Track,
+  ZapretStatus,
 } from "../types";
 
 export const api = {
@@ -91,4 +92,13 @@ export const api = {
   }) => invoke<void>("update_discord_presence", payload),
   exportUserBackup: (filePath: string) => invoke<void>("export_user_backup", { filePath }),
   importUserBackup: (filePath: string) => invoke<string | null>("import_user_backup", { filePath }),
+  getWaveTracks: (source: "yandex" | "soundcloud" | "mix") =>
+    invoke<Track[]>("get_wave_tracks", { source }),
+  getZapretStatus: () => invoke<ZapretStatus>("get_zapret_status"),
+  installZapret: () => invoke<ZapretStatus>("install_zapret"),
+  setZapretEnabled: (enabled: boolean) => invoke<ZapretStatus>("set_zapret_enabled", { enabled }),
+  getRuBypassStatus: () => invoke<[number, boolean]>("get_ru_bypass_status"),
+  setRuBypassMode: (mode: number) => invoke<[number, boolean]>("set_ru_bypass_mode", { mode }),
+  prefetchTrack: (track: Track) => invoke<void>("prefetch_track", { track }),
+  fetchCoverCached: (url: string) => invoke<string>("fetch_cover_cached", { url }),
 };

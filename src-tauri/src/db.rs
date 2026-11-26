@@ -94,7 +94,8 @@ impl Database {
                         codec = COALESCE(excluded.codec, tracks.codec),
                         bitrate_kbps = COALESCE(excluded.bitrate_kbps, tracks.bitrate_kbps),
                         sample_rate_hz = COALESCE(excluded.sample_rate_hz, tracks.sample_rate_hz),
-                        liked = CASE WHEN tracks.liked = 1 THEN 1 ELSE excluded.liked END",
+                        liked = CASE WHEN tracks.liked = 1 THEN 1 ELSE excluded.liked END,
+                        added_at = CASE WHEN excluded.liked = 1 AND excluded.added_at > 0 THEN excluded.added_at ELSE tracks.added_at END",
                 )
                 .map_err(|e| e.to_string())?;
 

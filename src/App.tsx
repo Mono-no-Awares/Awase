@@ -16,6 +16,7 @@ import type {
   SourceKind,
   SourceStatus,
   Track,
+  WaveSource,
 } from "./types";
 import { extractCoverPalette, type CoverPalette } from "./lib/colorExtract";
 import { SOURCE_META } from "./lib/sources";
@@ -111,6 +112,11 @@ export const App: React.FC = () => {
   const [folders, setFolders] = useState<LocalFolder[]>([]);
   const [devices, setDevices] = useState<AudioDevice[]>([]);
   const [selectedDevice, setSelectedDevice] = useState("");
+  const [waveSource, setWaveSource] = useState<WaveSource>("yandex");
+  const [activeWave, setActiveWave] = useState<WaveSource | null>(null);
+  const [waveLoading, setWaveLoading] = useState(false);
+  const [scRetryTrack, setScRetryTrack] = useState<Track | null>(null);
+  const [scAutoTuning, setScAutoTuning] = useState(false);
   const [eqState, setEqState] = useState<EqualizerState>({
     enabled: true,
     bands: [0, 0, 0, 0, 0],
@@ -309,9 +315,13 @@ export const App: React.FC = () => {
   const startTrackPlayback = useCallback(
     async (track: Track) => {
       try {
+        setScRetryTrack(null);
         await api.playTrack(track);
       } catch (err) {
         notify(`${String(err)}`, "error");
+        if (track.source === "soundcloud") {
+          setScRetryTrack(track);
+        }
       }
     },
     [notify]
@@ -328,6 +338,10 @@ export const App: React.FC = () => {
         setCurrentIndex(0);
       }
       await startTrackPlayback(track);
+      const nextAfter = idx >= 0 && idx + 1 < list.length ? list[idx + 1] : null;
+      if (nextAfter) {
+        api.prefetchTrack(nextAfter).catch(() => {});
+      }
     },
     [queue, startTrackPlayback]
   );
@@ -345,9 +359,57 @@ export const App: React.FC = () => {
       if (repeat === "all") nextIdx = 0;
       else return;
     }
+    if (queue.length - nextIdx <= 2 && activeWave && !waveLoading) {
+      api
+        .getWaveTracks(activeWave)
+        .then((more) => {
+          if (more.length > 0) {
+            setQueue((prev) => {
+              const ids = new Set(prev.map((t) => t.id));
+              const fresh = more.filter((t) => !ids.has(t.id));
+              return fresh.length > 0 ? [...prev, ...fresh] : prev;
+            });
+          }
+        })
+        .catch(() => {});
+    }
     setCurrentIndex(nextIdx);
     await startTrackPlayback(queue[nextIdx]);
-  }, [queue, currentIndex, repeat, shuffle, startTrackPlayback]);
+    if (nextIdx + 1 < queue.length) {
+      api.prefetchTrack(queue[nextIdx + 1]).catch(() => {});
+    }
+  }, [queue, currentIndex, repeat, shuffle, activeWave, waveLoading, startTrackPlayback]);
+
+  const handleStartWave = useCallback(
+    async (source: WaveSource) => {
+      setWaveSource(source);
+      setWaveLoading(true);
+      try {
+        const waveTracks = await api.getWaveTracks(source);
+        if (waveTracks.length === 0) {
+          notify(
+            preferences.language === "ru"
+              ? "Нет треков для волны — подключите сервис или добавьте лайки"
+              : "No wave tracks found — connect a service or like some tracks",
+            "error"
+          );
+          return;
+        }
+        setActiveWave(source);
+        setQueue(waveTracks);
+        setCurrentIndex(0);
+        await startTrackPlayback(waveTracks[0]);
+        if (waveTracks.length > 1) {
+          api.prefetchTrack(waveTracks[1]).catch(() => {});
+        }
+      } catch (err) {
+        notify(String(err), "error");
+      } finally {
+        setWaveLoading(false);
+      }
+    },
+    [notify, preferences.language, startTrackPlayback]
+  );
 
   const handlePrev = useCallback(async () => {
     if (queue.length === 0) return;
@@ -632,6 +694,12 @@ export const App: React.FC = () => {
               queueOpen={queueOpen}
               eqOpen={eqOpen}
               gamingMode={preferences.gamingMode}
+              waveSource={waveSource}
+              activeWave={activeWave}
+              waveLoading={waveLoading}
+              onChangeWaveSource={setWaveSource}
+              onStartWave={handleStartWave}
+              onStopWave={() => setActiveWave(null)}
               onTogglePlay={handleTogglePlay}
               onPrev={handlePrev}
               onNext={handleNext}
@@ -949,6 +1017,56 @@ export const App: React.FC = () => {
         }}
         onClose={() => setEqOpen(false)}
       />
+
+      {scRetryTrack && (
+        <div className="fixed bottom-40 left-1/2 -translate-x-1/2 z-50 flex flex-wrap items-center gap-3 px-4 py-2.5 rounded-2xl bg-[#101217]/95 border border-cyanpulse/40 backdrop-blur-xl text-xs text-white shadow-2xl awase-view-enter">
+          <span className="text-slate-200">
+            {preferences.language === "ru"
+              ? "SoundCloud не загрузился. Включить встроенный RU-обход (без WinDivert)?"
+              : "SoundCloud failed to load. Enable built-in RU bypass?"}
+          </span>
+          <button
+            type="button"
+            disabled={scAutoTuning}
+            onClick={async () => {
+              const target = scRetryTrack;
+              setScAutoTuning(true);
+              try {
+                await api.setRuBypassMode(1);
+                notify(
+                  preferences.language === "ru"
+                    ? "Встроенный RU-обход включён"
+                    : "Built-in RU bypass enabled"
+                );
+                setScRetryTrack(null);
+                if (target) {
+                  await startTrackPlayback(target);
+                }
+              } catch (err) {
+                notify(String(err), "error");
+              } finally {
+                setScAutoTuning(false);
+              }
+            }}
+            className="px-3 py-1.5 rounded-xl bg-cyanpulse text-[#050507] font-semibold hover:opacity-95 transition-all cursor-pointer disabled:opacity-50"
+          >
+            {scAutoTuning
+              ? preferences.language === "ru"
+                ? "Повтор..."
+                : "Retrying..."
+              : preferences.language === "ru"
+                ? "Включить и повторить"
+                : "Enable & Retry"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setScRetryTrack(null)}
+            className="px-2 py-1 text-slate-400 hover:text-white cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {toast && (
         <div

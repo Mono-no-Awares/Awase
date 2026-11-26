@@ -8,6 +8,7 @@ import type {
 } from "../types";
 import type { CoverPalette } from "../lib/colorExtract";
 import { TRANSLATIONS } from "../lib/i18n";
+import { api } from "../lib/ipc";
 import { formatDuration, SOURCE_META } from "../lib/sources";
 import {
   IconEqualizer,
@@ -83,8 +84,26 @@ export const PlayerDock: React.FC<PlayerDockProps> = ({
     : SOURCE_META.local;
   const duration = telemetry.durationMs || currentTrack?.durationMs || 0;
   const [scrubMs, setScrubMs] = useState<number | null>(null);
+  const [dockCover, setDockCover] = useState<string | null>(currentTrack?.coverUrl ?? null);
   const displayPos = scrubMs ?? telemetry.positionMs;
   const progress = duration > 0 ? Math.min(100, (displayPos / duration) * 100) : 0;
+
+  React.useEffect(() => {
+    const raw = currentTrack?.coverUrl ?? null;
+    setDockCover(raw);
+    if (raw && raw.includes("sndcdn.com")) {
+      let cancelled = false;
+      api
+        .fetchCoverCached(raw)
+        .then((dataUrl) => {
+          if (!cancelled) setDockCover(dataUrl);
+        })
+        .catch(() => {});
+      return () => {
+        cancelled = true;
+      };
+    }
+  }, [currentTrack?.id, currentTrack?.coverUrl]);
 
   const commitSeek = (val: number) => {
     setScrubMs(null);
@@ -120,10 +139,17 @@ export const PlayerDock: React.FC<PlayerDockProps> = ({
               : "none",
           }}
         >
-          {currentTrack?.coverUrl ? (
+          {dockCover ? (
             <img
-              src={currentTrack.coverUrl}
-              alt={currentTrack.title}
+              src={dockCover}
+              alt=""
+              onError={() => {
+                if (dockCover.includes("-t500x500")) {
+                  setDockCover(dockCover.replace("-t500x500", "-large"));
+                } else {
+                  setDockCover(null);
+                }
+              }}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             />
           ) : (

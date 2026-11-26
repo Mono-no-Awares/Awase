@@ -80,23 +80,38 @@ pub async fn sync_library(
         .await
         .map_err(|e| e.to_string())?;
     let likes_json: Value = likes_resp.json().await.map_err(|e| e.to_string())?;
-    let track_ids: Vec<String> = likes_json
+    let base_ts = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+
+    let liked_entries: Vec<(String, i64)> = likes_json
         .get("result")
         .and_then(|r| r.get("library"))
         .and_then(|l| l.get("tracks"))
         .and_then(|t| t.as_array())
         .map(|arr| {
             arr.iter()
-                .filter_map(|item| {
-                    item.get("id").and_then(|v| {
+                .enumerate()
+                .filter_map(|(idx, item)| {
+                    let id = item.get("id").and_then(|v| {
                         v.as_str()
                             .map(str::to_string)
                             .or_else(|| v.as_i64().map(|n| n.to_string()))
-                    })
+                    })?;
+                    let ts = item
+                        .get("timestamp")
+                        .and_then(|v| v.as_str())
+                        .and_then(super::parse_iso_timestamp)
+                        .unwrap_or_else(|| base_ts - idx as i64);
+                    Some((id, ts))
                 })
                 .collect()
         })
         .unwrap_or_default();
+
+    let ts_map: std::collections::HashMap<String, i64> = liked_entries.iter().cloned().collect();
+    let track_ids: Vec<String> = liked_entries.iter().map(|(id, _)| id.clone()).collect();
 
     let mut tracks = Vec::new();
     for chunk in track_ids.chunks(150) {
@@ -112,7 +127,10 @@ pub async fn sync_library(
             let meta_json: Value = meta_resp.json().await.map_err(|e| e.to_string())?;
             if let Some(arr) = meta_json.get("result").and_then(|r| r.as_array()) {
                 for v in arr {
-                    if let Some(t) = parse_track(v, true) {
+                    if let Some(mut t) = parse_track(v, true) {
+                        if let Some(&ts) = ts_map.get(&t.external_id) {
+                            t.added_at = ts;
+                        }
                         tracks.push(t);
                     }
                 }
@@ -185,6 +203,36 @@ pub async fn sync_library(
     }
 
     Ok((tracks, playlists))
+}
+
+pub async fn fetch_my_wave(client: &Client, token: &str) -> Result<Vec<Track>, String> {
+    let resp = client
+        .get(format!("{}/rotor/station/user:onyourwave/tracks", YM_API))
+        .header("Authorization", format!("OAuth {}", token))
+        .header("X-Yandex-Music-Client", "YandexMusicAndroid/24023621")
+        .query(&[("settings2", "true")])
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if !resp.status().is_success() {
+        return Err(format!("Yandex My Wave HTTP {}", resp.status()));
+    }
+    let json: Value = resp.json().await.map_err(|e| e.to_string())?;
+    let mut out = Vec::new();
+    if let Some(seq) = json
+        .get("result")
+        .and_then(|r| r.get("sequence"))
+        .and_then(|s| s.as_array())
+    {
+        for item in seq {
+            let t_val = item.get("track").unwrap_or(item);
+            if let Some(t) = parse_track(t_val, false) {
+                out.push(t);
+            }
+        }
+    }
+    Ok(out)
 }
 
 pub async fn resolve_stream_url(

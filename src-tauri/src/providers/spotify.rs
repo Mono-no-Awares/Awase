@@ -314,7 +314,7 @@ pub async fn import_public_playlist(
 
     let mut tracks = Vec::new();
     if let Some(arr) = entity.get("trackList").and_then(|v| v.as_array()) {
-        for item in arr {
+        for (idx, item) in arr.iter().enumerate() {
             let uri = item.get("uri").and_then(|u| u.as_str()).unwrap_or("");
             let ext_id = uri
                 .rsplit(':')
@@ -353,7 +353,7 @@ pub async fn import_public_playlist(
                 bitrate_kbps: Some(128),
                 sample_rate_hz: Some(44100),
                 liked: false,
-                added_at: now,
+                added_at: now - idx as i64,
             });
         }
     }

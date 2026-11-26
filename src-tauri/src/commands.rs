@@ -18,11 +18,13 @@ use crate::models::{
     SourceKind, SourceStatus, Track,
 };
 use crate::providers::{self, soundcloud, spotify, yandex};
+use crate::zapret::{self, ZapretStatus};
 
 pub struct AppState {
     pub db: Arc<Database>,
     pub engine: Arc<AudioEngine>,
     pub http: reqwest::Client,
+    pub data_dir: PathBuf,
     pub cache_dir: PathBuf,
     pub sys: Mutex<System>,
     pub play_seq: AtomicU64,
@@ -209,14 +211,18 @@ pub async fn play_track(state: State<'_, AppState>, track: Track) -> Result<(), 
             let _ = state
                 .db
                 .save_credentials(SourceKind::SoundCloud, None, Some(&cid), None, None);
-            soundcloud::resolve_and_download(
+            let out = soundcloud::resolve_and_download(
                 &state.http,
                 &state.cache_dir,
                 &cid,
                 &track.external_id,
                 &track.id,
             )
-            .await?
+            .await?;
+            if soundcloud::get_ru_bypass_state().1 {
+                let _ = state.db.save_setting("sc_ru_tripped", "true");
+            }
+            out
         }
         SourceKind::Spotify => {
             let title_lc = track.title.to_lowercase();
@@ -1094,4 +1100,182 @@ pub fn import_user_backup(
     }
 
     Ok(backup.ui_prefs)
+}
+
+#[tauri::command]
+pub async fn get_wave_tracks(
+    state: State<'_, AppState>,
+    source: String,
+) -> Result<Vec<Track>, String> {
+    let want_ym = source == "yandex" || source == "mix";
+    let want_sc = source == "soundcloud" || source == "mix";
+
+    let mut ym_tracks = Vec::new();
+    let mut sc_tracks = Vec::new();
+
+    if want_ym {
+        let token = state.db.get_credentials(SourceKind::Yandex)?.and_then(|c| c.0);
+        if let Some(tok) = token {
+            ym_tracks = yandex::fetch_my_wave(&state.http, &tok)
+                .await
+                .unwrap_or_default();
+        } else if source == "yandex" {
+            return Err("Connect Yandex Music first".to_string());
+        }
+    }
+
+    if want_sc {
+        let cached = state.db.get_credentials(SourceKind::SoundCloud)?.and_then(|c| c.1);
+        let cid = soundcloud::resolve_client_id(&state.http, cached.as_deref()).await?;
+        let _ = state
+            .db
+            .save_credentials(SourceKind::SoundCloud, None, Some(&cid), None, None);
+        let seeds: Vec<String> = state
+            .db
+            .get_tracks(Some(SourceKind::SoundCloud), None)
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|t| t.liked)
+            .take(40)
+            .map(|t| t.external_id)
+            .collect();
+        sc_tracks = soundcloud::fetch_my_wave(&state.http, &cid, &seeds)
+            .await
+            .unwrap_or_default();
+    }
+
+    if source == "mix" {
+        let mut mixed = Vec::with_capacity(ym_tracks.len() + sc_tracks.len());
+        let max_len = ym_tracks.len().max(sc_tracks.len());
+        for i in 0..max_len {
+            if let Some(t) = ym_tracks.get(i) {
+                mixed.push(t.clone());
+            }
+            if let Some(t) = sc_tracks.get(i) {
+                mixed.push(t.clone());
+            }
+        }
+        return Ok(mixed);
+    }
+
+    if want_ym {
+        Ok(ym_tracks)
+    } else {
+        Ok(sc_tracks)
+    }
+}
+
+#[tauri::command]
+pub fn get_zapret_status(state: State<'_, AppState>) -> ZapretStatus {
+    let _ = zapret::ensure_soundcloud_list(&state.data_dir);
+    zapret::get_status(&state.data_dir)
+}
+
+#[tauri::command]
+pub async fn install_zapret(state: State<'_, AppState>) -> Result<ZapretStatus, String> {
+    zapret::install_zapret(&state.http, &state.data_dir).await
+}
+
+#[tauri::command]
+pub async fn prefetch_track(state: State<'_, AppState>, track: Track) -> Result<(), String> {
+    match track.source {
+        SourceKind::SoundCloud => {
+            let creds = state.db.get_credentials(SourceKind::SoundCloud)?;
+            let cached_cid = creds.as_ref().and_then(|c| c.1.as_deref());
+            let cid = soundcloud::resolve_client_id(&state.http, cached_cid).await?;
+            let _ = soundcloud::resolve_and_download(
+                &state.http,
+                &state.cache_dir,
+                &cid,
+                &track.external_id,
+                &track.id,
+            )
+            .await?;
+        }
+        SourceKind::Yandex => {
+            let token = state
+                .db
+                .get_credentials(SourceKind::Yandex)?
+                .and_then(|c| c.0)
+                .ok_or_else(|| "Not connected".to_string())?;
+            let (stream_url, _, ext) =
+                yandex::resolve_stream_url(&state.http, &token, &track.external_id).await?;
+            let _ = providers::download_to_cache(
+                &state.http,
+                &state.cache_dir,
+                &track.id,
+                &ext,
+                &stream_url,
+                None,
+            )
+            .await?;
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn fetch_cover_cached(
+    state: State<'_, AppState>,
+    url: String,
+) -> Result<String, String> {
+    use base64::Engine as _;
+    use sha2::{Digest, Sha256};
+
+    let covers_dir = state.cache_dir.join("covers");
+    std::fs::create_dir_all(&covers_dir).map_err(|e| e.to_string())?;
+    let mut hasher = Sha256::new();
+    hasher.update(url.as_bytes());
+    let key = format!("{:x}", hasher.finalize());
+    let file_path = covers_dir.join(format!("{}.img", key));
+
+    let bytes = if file_path.exists() {
+        std::fs::read(&file_path).map_err(|e| e.to_string())?
+    } else {
+        let fetched = soundcloud::fetch_stream_bytes(&state.http, &url).await?;
+        if fetched.len() < 128 {
+            return Err("Empty cover image".to_string());
+        }
+        let _ = std::fs::write(&file_path, &fetched);
+        fetched
+    };
+
+    let mime = if bytes.starts_with(&[0x89, 0x50, 0x4E, 0x47]) {
+        "image/png"
+    } else if bytes.starts_with(b"RIFF") {
+        "image/webp"
+    } else {
+        "image/jpeg"
+    };
+    let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+    Ok(format!("data:{};base64,{}", mime, b64))
+}
+
+#[tauri::command]
+pub fn get_ru_bypass_status() -> (u8, bool) {
+    soundcloud::get_ru_bypass_state()
+}
+
+#[tauri::command]
+pub fn set_ru_bypass_mode(state: State<'_, AppState>, mode: u8) -> (u8, bool) {
+    soundcloud::set_ru_bypass_mode(mode);
+    let _ = state.db.save_setting("sc_ru_bypass_mode", &mode.to_string());
+    if mode == 2 {
+        let _ = state.db.save_setting("sc_ru_tripped", "false");
+    }
+    soundcloud::get_ru_bypass_state()
+}
+
+#[tauri::command]
+pub async fn set_zapret_enabled(
+    state: State<'_, AppState>,
+    enabled: bool,
+) -> Result<ZapretStatus, String> {
+    if enabled {
+        zapret::start_zapret_auto(&state.data_dir).await
+    } else {
+        zapret::stop_zapret();
+        Ok(zapret::get_status(&state.data_dir))
+    }
 }

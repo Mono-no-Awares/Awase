@@ -6,6 +6,18 @@ export type SourceKind =
 
 export type ActiveView = "stage" | "resonance" | "library" | "sources";
 
+export type WaveSource = "yandex" | "soundcloud" | "mix";
+
+export interface ZapretStatus {
+  installed: boolean;
+  running: boolean;
+  externalRunning: boolean;
+  listPath: string;
+  exePath: string;
+  strategy?: string | null;
+  progress?: string | null;
+}
+
 export type VisualizerStyle = "aura" | "silk" | "orbital";
 
 export type MiniVisualizerMode = "bars" | "wave" | "off";

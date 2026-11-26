@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import type {
   AppLanguage,
   AppPreferences,
@@ -11,7 +11,9 @@ import type {
   MotionStyle,
   SourceKind,
   SourceStatus,
+  ZapretStatus,
 } from "../types";
+import { api } from "../lib/ipc";
 import { TRANSLATIONS } from "../lib/i18n";
 import { SOURCE_META, SOURCE_ORDER } from "../lib/sources";
 import { CustomSelect } from "./CustomSelect";
@@ -98,6 +100,67 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
   const [spotifyPlaylistInput, setSpotifyPlaylistInput] = useState("");
   const [scToken, setScToken] = useState("");
   const [scHandle, setScHandle] = useState("");
+  const [zapretStatus, setZapretStatus] = useState<ZapretStatus | null>(null);
+  const [zapretBusy, setZapretBusy] = useState(false);
+  const [zapretErr, setZapretErr] = useState<string | null>(null);
+  const [ruBypass, setRuBypass] = useState<[number, boolean]>([0, false]);
+
+  useEffect(() => {
+    api.getZapretStatus().then(setZapretStatus).catch(() => {});
+    api.getRuBypassStatus().then(setRuBypass).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!zapretBusy) return;
+    const id = window.setInterval(() => {
+      api.getZapretStatus().then(setZapretStatus).catch(() => {});
+    }, 550);
+    return () => window.clearInterval(id);
+  }, [zapretBusy]);
+
+  const handleInstallZapret = async () => {
+    setZapretBusy(true);
+    setZapretErr(null);
+    try {
+      const st = await api.installZapret();
+      setZapretStatus(st);
+    } catch (err) {
+      setZapretErr(String(err));
+    } finally {
+      setZapretBusy(false);
+    }
+  };
+
+  const handleToggleZapret = async () => {
+    setZapretBusy(true);
+    setZapretErr(null);
+    try {
+      const st = zapretStatus ?? (await api.getZapretStatus());
+      const next = await api.setZapretEnabled(!st.running);
+      setZapretStatus(next);
+    } catch (err) {
+      setZapretErr(String(err));
+    } finally {
+      setZapretBusy(false);
+    }
+  };
+
+  const handleAutoTuneZapret = async () => {
+    setZapretBusy(true);
+    setZapretErr(null);
+    try {
+      let st = zapretStatus ?? (await api.getZapretStatus());
+      if (!st.installed) {
+        st = await api.installZapret();
+      }
+      const next = await api.setZapretEnabled(true);
+      setZapretStatus(next);
+    } catch (err) {
+      setZapretErr(String(err));
+    } finally {
+      setZapretBusy(false);
+    }
+  };
 
   const t = TRANSLATIONS[preferences.language];
   const getStatus = (src: SourceKind) => statuses.find((s) => s.source === src);
@@ -825,6 +888,136 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
                     }`}
                   />
                 </button>
+              </div>
+
+              <div className="pt-2 border-t border-white/[0.08] space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-white">
+                        {preferences.language === "ru"
+                          ? "Встроенный RU-обход SoundCloud"
+                          : "Built-in SoundCloud RU Bypass"}
+                      </span>
+                      {(ruBypass[0] === 1 || (ruBypass[0] === 0 && ruBypass[1])) && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/20 text-emerald-300">
+                          {preferences.language === "ru" ? "Активен" : "Active"}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-slate-400 leading-snug">
+                      {preferences.language === "ru"
+                        ? "Обходит блокировку 16 КБ без прав администратора, драйвера WinDivert и конфликта с другими программами."
+                        : "Bypasses the 16 KB ISP throttle without admin rights, WinDivert driver, or conflicts."}
+                    </div>
+                  </div>
+                  <div className="inline-flex rounded-xl bg-white/[0.05] border border-white/[0.08] p-0.5 shrink-0">
+                    {(
+                      [
+                        { id: 0, label: preferences.language === "ru" ? "Авто" : "Auto" },
+                        { id: 1, label: preferences.language === "ru" ? "Всегда" : "Always" },
+                        { id: 2, label: preferences.language === "ru" ? "Выкл" : "Off" },
+                      ] as const
+                    ).map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => {
+                          api.setRuBypassMode(opt.id).then(setRuBypass).catch(() => {});
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
+                          ruBypass[0] === opt.id
+                            ? "bg-white text-[#050507] shadow-sm"
+                            : "text-slate-300 hover:text-white"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-white/[0.08] space-y-2.5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium text-white">
+                      {preferences.language === "ru"
+                        ? "Системный Zapret (WinDivert, доп.)"
+                        : "System Zapret (WinDivert, optional)"}
+                    </div>
+                    <div className="text-[11px] text-slate-400 leading-snug">
+                      {zapretStatus?.running && zapretStatus.strategy
+                        ? `${preferences.language === "ru" ? "Активна стратегия" : "Active strategy"}: ${zapretStatus.strategy}`
+                        : zapretStatus?.externalRunning
+                          ? preferences.language === "ru"
+                            ? "Обнаружен сторонний Zapret (без домена SoundCloud). Нажмите Автоподбор, чтобы переключить на список SoundCloud."
+                            : "External Zapret detected (without SoundCloud list). Click Auto-tune to switch."
+                          : preferences.language === "ru"
+                            ? "Включайте, если в РФ не грузятся треки SoundCloud. Один запрос UAC — и Awase сам подберёт рабочую стратегию."
+                            : "Enable if SoundCloud streams fail in your region. Single UAC prompt to auto-tune a working strategy."}
+                    </div>
+                  </div>
+                  {zapretStatus?.installed ? (
+                    <button
+                      type="button"
+                      role="switch"
+                      disabled={zapretBusy}
+                      aria-checked={zapretStatus.running}
+                      onClick={handleToggleZapret}
+                      className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 flex items-center shrink-0 cursor-pointer disabled:opacity-50 ${
+                        zapretStatus.running ? "bg-cyanpulse" : "bg-white/[0.18]"
+                      }`}
+                    >
+                      <span
+                        className={`w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
+                          zapretStatus.running ? "translate-x-4" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={zapretBusy}
+                      onClick={handleInstallZapret}
+                      className="px-3 py-1.5 rounded-xl bg-white/[0.08] hover:bg-white/[0.14] border border-white/[0.12] text-[11px] font-medium text-white shrink-0 transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      {preferences.language === "ru" ? "Скачать (~5 МБ)" : "Download (~5 MB)"}
+                    </button>
+                  )}
+                </div>
+
+                {zapretStatus?.installed && (
+                  <div className="flex items-center justify-between gap-2 text-[11px]">
+                    <span className="text-slate-400">
+                      {zapretStatus.running
+                        ? preferences.language === "ru"
+                          ? "Статус: работает (list-soundcloud.txt)"
+                          : "Status: running (list-soundcloud.txt)"
+                        : preferences.language === "ru"
+                          ? "Статус: установлен, выключен"
+                          : "Status: installed, stopped"}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={zapretBusy}
+                      onClick={handleAutoTuneZapret}
+                      className="px-2.5 py-1 rounded-lg bg-cyanpulse/15 hover:bg-cyanpulse/25 text-cyanpulse font-medium transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      {preferences.language === "ru" ? "Автоподбор" : "Auto-tune"}
+                    </button>
+                  </div>
+                )}
+
+                {zapretBusy && (
+                  <div className="text-[11px] text-cyanpulse">
+                    {zapretStatus?.progress ||
+                      (preferences.language === "ru"
+                        ? "Подбор рабочей стратегии / загрузка Zapret..."
+                        : "Auto-tuning strategy / downloading Zapret...")}
+                  </div>
+                )}
+                {zapretErr && <div className="text-[11px] text-rose-300">{zapretErr}</div>}
               </div>
 
               <div className="pt-2 border-t border-white/[0.08] grid grid-cols-2 gap-2">

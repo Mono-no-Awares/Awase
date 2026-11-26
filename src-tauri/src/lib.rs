@@ -5,6 +5,7 @@ mod discord_rpc;
 mod local_scanner;
 mod models;
 mod providers;
+mod zapret;
 
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
@@ -58,12 +59,21 @@ pub fn run() {
             if let Ok(Some(dev)) = db.get_setting("audio_device") {
                 let _ = engine.set_output_device(&dev);
             }
+            if let Ok(Some(mode_s)) = db.get_setting("sc_ru_bypass_mode") {
+                if let Ok(m) = mode_s.parse::<u8>() {
+                    providers::soundcloud::set_ru_bypass_mode(m);
+                }
+            }
+            if db.get_setting("sc_ru_tripped").ok().flatten().as_deref() == Some("true") {
+                providers::soundcloud::set_ru_tripped(true);
+            }
             let http = providers::build_http_client();
 
             app.manage(AppState {
                 db,
                 engine,
                 http,
+                data_dir,
                 cache_dir,
                 sys: Mutex::new(System::new()),
                 play_seq: AtomicU64::new(0),
@@ -111,6 +121,7 @@ pub fn run() {
                         }
                     }
                     "quit" => {
+                        zapret::stop_zapret();
                         app_handle.exit(0);
                     }
                     _ => {}
@@ -193,6 +204,14 @@ pub fn run() {
             commands::update_discord_presence,
             commands::export_user_backup,
             commands::import_user_backup,
+            commands::get_wave_tracks,
+            commands::get_zapret_status,
+            commands::install_zapret,
+            commands::set_zapret_enabled,
+            commands::get_ru_bypass_status,
+            commands::set_ru_bypass_mode,
+            commands::prefetch_track,
+            commands::fetch_cover_cached,
         ])
         .run(tauri::generate_context!())
         .expect("error while running awase");

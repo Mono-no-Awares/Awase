@@ -20,16 +20,11 @@
 
 ## Превью
 
-<p align="center">
-  <img src="assets/resonance-aura-v2.png" alt="Awase Резонанс — Аура" width="420" />
-  &nbsp;&nbsp;
-  <img src="assets/resonance-silk-v2.png" alt="Awase Резонанс — Шёлк" width="420" />
-</p>
-<p align="center">
-  <img src="assets/library-v2.png" alt="Awase Коллекция" width="420" />
-  &nbsp;&nbsp;
-  <img src="assets/settings-v2.png" alt="Awase Настройки и Эквалайзер" width="420" />
-</p>
+| Резонанс — Аура | Резонанс — Шёлк |
+| :---: | :---: |
+| ![Awase Резонанс — Аура](assets/resonance-aura-v2.png) | ![Awase Резонанс — Шёлк](assets/resonance-silk-v2.png) |
+| **Коллекция** | **Настройки и Эквалайзер** |
+| ![Awase Коллекция](assets/library-v2.png) | ![Awase Настройки и Эквалайзер](assets/settings-v2.png) |
 
 ---
 

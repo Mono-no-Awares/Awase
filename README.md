@@ -20,16 +20,11 @@
 
 ## Preview
 
-<p align="center">
-  <img src="assets/resonance-aura-v2.png" alt="Awase Resonance — Aura" width="420" />
-  &nbsp;&nbsp;
-  <img src="assets/resonance-silk-v2.png" alt="Awase Resonance — Silk" width="420" />
-</p>
-<p align="center">
-  <img src="assets/library-v2.png" alt="Awase Library" width="420" />
-  &nbsp;&nbsp;
-  <img src="assets/settings-v2.png" alt="Awase Settings & Equalizer" width="420" />
-</p>
+| Resonance — Aura | Resonance — Silk |
+| :---: | :---: |
+| ![Awase Resonance — Aura](assets/resonance-aura-v2.png) | ![Awase Resonance — Silk](assets/resonance-silk-v2.png) |
+| **Library** | **Settings & Equalizer** |
+| ![Awase Library](assets/library-v2.png) | ![Awase Settings & Equalizer](assets/settings-v2.png) |
 
 ---
 

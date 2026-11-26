@@ -12,7 +12,7 @@
 ![Tauri](https://img.shields.io/badge/Tauri-v2-24c8db?style=flat-square&logo=tauri&logoColor=white)
 ![React](https://img.shields.io/badge/React-18%20%2B%20TS-38bdf8?style=flat-square&logo=react&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows%2011-0078d4?style=flat-square&logo=windows&logoColor=white)
-![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)
+![License](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0-crimson?style=flat-square)
 
 </div>
 
@@ -98,4 +98,7 @@ The standalone executable and NSIS installer will be generated in `src-tauri/tar
 
 ## License
 
-MIT © [Mono no Aware](https://github.com/Mono-no-Awares)
+**PolyForm Noncommercial License 1.0.0** © [Mono-no-Awares](https://github.com/Mono-no-Awares) — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
+
+- **Allowed:** Personal, educational, and non-commercial use, inspection, and non-commercial forks with preserved attribution and link to [Mono-no-Awares/Awase](https://github.com/Mono-no-Awares/Awase).
+- **Prohibited:** Selling, reselling, monetizing, commercial redistribution, or embedding into commercial products/services without explicit written permission (`mononoawares.dev@gmail.com`). The Awase name, logo, and icons are not licensed for impersonation.

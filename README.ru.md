@@ -12,7 +12,7 @@
 ![Tauri](https://img.shields.io/badge/Tauri-v2-24c8db?style=flat-square&logo=tauri&logoColor=white)
 ![React](https://img.shields.io/badge/React-18%20%2B%20TS-38bdf8?style=flat-square&logo=react&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows%2011-0078d4?style=flat-square&logo=windows&logoColor=white)
-![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)
+![License](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0-crimson?style=flat-square)
 
 </div>
 
@@ -68,4 +68,7 @@ npm run tauri build
 
 ## Лицензия
 
-MIT © [Mono no Aware](https://github.com/Mono-no-Awares)
+**PolyForm Noncommercial License 1.0.0** © [Mono-no-Awares](https://github.com/Mono-no-Awares) — см. [LICENSE](LICENSE) и [NOTICE](NOTICE).
+
+- **Разрешено:** личное, учебное и некоммерческое использование, изучение кода и некоммерческие форки с сохранением авторства и ссылки на [Mono-no-Awares/Awase](https://github.com/Mono-no-Awares/Awase).
+- **Запрещено:** продажа, перепродажа, монетизация, коммерческое распространение и встраивание в коммерческие продукты или платные сервисы без письменного разрешения (`mononoawares.dev@gmail.com`). Название, логотип и иконки Awase защищены и не предназначены для выдачи сторонних сборок за официальные.

@@ -1,0 +1,22 @@
+Awase
+Copyright (c) 2026 Mono-no-Awares
+Repository: https://github.com/Mono-no-Awares/Awase
+Contact: mononoawares.dev@gmail.com
+
+1. License Scope
+   Awase is source-available under the PolyForm Noncommercial License 1.0.0.
+   Personal, educational, and non-commercial use is permitted.
+   Selling, reselling, commercial redistribution, or embedding Awase (in whole
+   or in part) into any commercial product or paid service is strictly
+   prohibited without a separate written commercial license from Mono-no-Awares.
+
+2. Attribution & Integrity
+   Any non-commercial fork or redistribution must retain this NOTICE file,
+   all original copyright headers, and a visible link to the upstream
+   repository: https://github.com/Mono-no-Awares/Awase
+
+3. Brand, Name & Artwork Protection
+   The "Awase" name, logo, application icons (src-tauri/icons/*), and visual
+   branding remain the exclusive property of Mono-no-Awares and are not
+   licensed for rebranding, impersonation, or distribution of unofficial
+   builds presented as official Awase releases.

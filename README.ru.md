@@ -21,14 +21,14 @@
 ## Превью
 
 <p align="center">
-  <img src="assets/resonance-aura.jpg" alt="Awase Резонанс — Аура" width="420" />
+  <img src="assets/resonance-aura-v2.png" alt="Awase Резонанс — Аура" width="420" />
   &nbsp;&nbsp;
-  <img src="assets/resonance-silk.jpg" alt="Awase Резонанс — Шёлк" width="420" />
+  <img src="assets/resonance-silk-v2.png" alt="Awase Резонанс — Шёлк" width="420" />
 </p>
 <p align="center">
-  <img src="assets/library.png" alt="Awase Коллекция" width="420" />
+  <img src="assets/library-v2.png" alt="Awase Коллекция" width="420" />
   &nbsp;&nbsp;
-  <img src="assets/settings.png" alt="Awase Настройки и Эквалайзер" width="420" />
+  <img src="assets/settings-v2.png" alt="Awase Настройки и Эквалайзер" width="420" />
 </p>
 
 ---

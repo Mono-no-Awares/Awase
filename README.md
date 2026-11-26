@@ -21,14 +21,14 @@
 ## Preview
 
 <p align="center">
-  <img src="assets/resonance-aura.jpg" alt="Awase Resonance — Aura" width="420" />
+  <img src="assets/resonance-aura-v2.png" alt="Awase Resonance — Aura" width="420" />
   &nbsp;&nbsp;
-  <img src="assets/resonance-silk.jpg" alt="Awase Resonance — Silk" width="420" />
+  <img src="assets/resonance-silk-v2.png" alt="Awase Resonance — Silk" width="420" />
 </p>
 <p align="center">
-  <img src="assets/library.png" alt="Awase Library" width="420" />
+  <img src="assets/library-v2.png" alt="Awase Library" width="420" />
   &nbsp;&nbsp;
-  <img src="assets/settings.png" alt="Awase Settings & Equalizer" width="420" />
+  <img src="assets/settings-v2.png" alt="Awase Settings & Equalizer" width="420" />
 </p>
 
 ---

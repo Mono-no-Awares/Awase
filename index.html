@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Awase</title>
+    <style>
+      html, body, #root {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        width: 100%;
+        background: #090B10;
+        color: #F1F5F9;
+        overflow: hidden;
+      }
+      @keyframes awaseBootPulse {
+        0%, 100% { opacity: 0.45; transform: scale(0.97); }
+        50% { opacity: 1; transform: scale(1.03); }
+      }
+      .awase-boot {
+        height: 100%;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        background: radial-gradient(circle at 50% 42%, rgba(56, 189, 248, 0.12), #090B10 60%);
+        font-family: system-ui, -apple-system, sans-serif;
+      }
+      .awase-boot svg {
+        animation: awaseBootPulse 1.8s ease-in-out infinite;
+      }
+      .awase-boot span {
+        font-size: 13px;
+        letter-spacing: 0.22em;
+        color: #94A3B8;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <div class="awase-boot">
+        <svg width="48" height="48" viewBox="0 0 36 36" fill="none">
+          <path d="M11 3H25L33 11V25L25 33H11L3 25V11L11 3Z" stroke="#38BDF8" stroke-width="1.5" fill="rgba(14,19,30,0.9)" />
+          <path d="M9 21.5C12.2 14.5 14.8 11 18 11C21.2 11 23.8 14.5 27 21.5" stroke="#818CF8" stroke-width="1.8" stroke-linecap="round" />
+          <path d="M9.5 16.5C12.5 22 15.2 25 18 25C20.8 25 23.5 22 26.5 16.5" stroke="#38BDF8" stroke-width="1.5" stroke-linecap="round" />
+          <circle cx="18" cy="18" r="2.2" fill="#F1F5F9" />
+        </svg>
+        <span>AWASE</span>
+      </div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

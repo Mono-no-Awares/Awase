@@ -1,0 +1,42 @@
+[package]
+name = "awase"
+version = "0.1.0"
+description = "Unified Rust audio player harmonizing Local Lossless, Yandex Music, Spotify & SoundCloud"
+authors = ["Mono-no-Awares <mononoawares.dev@gmail.com>"]
+license = "MIT"
+edition = "2021"
+
+[lib]
+name = "awase_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "native-tls"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+rodio = { version = "0.19", default-features = false, features = ["symphonia-all"] }
+cpal = "0.15"
+rustfft = "6.2"
+lofty = "0.21"
+walkdir = "2.5"
+parking_lot = "0.12"
+base64 = "0.22"
+sha2 = "0.10"
+md-5 = "0.10"
+rand = "0.8"
+url = "2.5"
+roxmltree = "0.20"
+sysinfo = "0.33"
+
+[profile.release]
+codegen-units = 16
+lto = false
+opt-level = 2
+strip = true

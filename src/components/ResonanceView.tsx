@@ -16,6 +16,7 @@ import {
   IconChevronDown,
   IconEqualizer,
   IconHeart,
+  IconLyrics,
   IconMute,
   IconNext,
   IconPause,
@@ -59,6 +60,7 @@ interface ResonanceViewProps {
   onChangeWaveSource: (src: WaveSource) => void;
   onStartWave: (src: WaveSource) => void;
   onStopWave: () => void;
+  onOpenLyrics: () => void;
 }
 
 export const ResonanceView: React.FC<ResonanceViewProps> = ({
@@ -90,6 +92,7 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
   onChangeWaveSource,
   onStartWave,
   onStopWave,
+  onOpenLyrics,
 }) => {
   const t = TRANSLATIONS[language];
   const meta = currentTrack ? SOURCE_META[currentTrack.source] : SOURCE_META.local;
@@ -161,8 +164,6 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
   ];
 
   const activeStyleLabel = styles.find((s) => s.id === visualizerStyle)?.label ?? t.vizAura;
-  const activeWaveLabel =
-    waveSources.find((w) => w.id === (activeWave ?? waveSource))?.label ?? "Yandex";
 
   const commitSeek = (val: number) => {
     setScrubMs(null);
@@ -191,7 +192,7 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
         />
       </div>
 
-      <div className="relative z-10 flex flex-wrap items-center justify-between gap-3">
+      <div className="relative z-30 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 px-1">
           <span
             className="w-2 h-2 rounded-full transition-colors duration-500"
@@ -205,7 +206,16 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
           </span>
         </div>
 
-        <div ref={menusRef} className="relative flex flex-wrap items-center gap-2">
+        <div ref={menusRef} className="relative flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onOpenLyrics}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/[0.05] hover:bg-white/[0.09] border border-white/[0.1] backdrop-blur-xl text-xs font-medium text-slate-200 hover:text-white transition-all duration-200 cursor-pointer"
+          >
+            <IconLyrics size={14} className="text-slate-300" />
+            <span>{language === "ru" ? "Текст" : "Lyrics"}</span>
+          </button>
+
           <div className="relative">
             <button
               type="button"
@@ -213,44 +223,40 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
               style={
                 activeWave
                   ? {
-                      borderColor: `${coverPalette.primary}66`,
-                      boxShadow: `0 0 20px ${coverPalette.glow}`,
+                      borderColor: `${coverPalette.primary}55`,
+                      boxShadow: `0 0 22px -4px ${coverPalette.glow}`,
                     }
                   : undefined
               }
-              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full bg-[#0E0F13]/90 border border-white/[0.12] backdrop-blur-xl text-xs font-medium text-white hover:bg-white/[0.08] transition-all cursor-pointer"
+              className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full backdrop-blur-xl border text-xs font-medium transition-all duration-200 cursor-pointer ${
+                activeWave
+                  ? "bg-white/[0.1] text-white"
+                  : "bg-white/[0.05] hover:bg-white/[0.09] border-white/[0.1] text-slate-200 hover:text-white"
+              }`}
             >
-              <span
-                className={`w-2 h-2 rounded-full ${activeWave ? "animate-pulse" : "bg-slate-500"}`}
-                style={activeWave ? { backgroundColor: coverPalette.primary } : undefined}
+              <IconResonance
+                size={14}
+                className={activeWave ? "text-cyanpulse" : "text-slate-400"}
               />
               <span>{language === "ru" ? "Моя волна" : "My Wave"}</span>
-              <span className="text-slate-400">·</span>
-              <span className={activeWave ? "text-cyanpulse font-semibold" : "text-slate-400"}>
-                {waveLoading
-                  ? language === "ru"
-                    ? "Подбор..."
-                    : "Loading..."
-                  : activeWave
-                    ? language === "ru"
-                      ? `Вкл (${activeWaveLabel})`
-                      : `On (${activeWaveLabel})`
-                    : language === "ru"
-                      ? "Выкл"
-                      : "Off"}
-              </span>
+              {activeWave && (
+                <span
+                  className="w-1.5 h-1.5 rounded-full animate-pulse"
+                  style={{ backgroundColor: coverPalette.primary }}
+                />
+              )}
               <IconChevronDown
-                size={13}
+                size={12}
                 className={`text-slate-400 transition-transform duration-200 ${openMenu === "wave" ? "rotate-180" : ""}`}
               />
             </button>
 
             {openMenu === "wave" && (
-              <div className="awase-menu-pop absolute right-0 mt-2 w-64 rounded-2xl bg-[#101217]/95 backdrop-blur-2xl border border-white/[0.14] shadow-[0_24px_48px_rgba(0,0,0,0.85)] p-2 z-30 space-y-2">
-                <div className="px-2 pt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-                  {language === "ru" ? "Источник волны" : "Wave Source"}
+              <div className="awase-menu-pop absolute right-0 mt-2 w-60 max-h-[calc(100vh-190px)] overflow-y-auto awase-scroll rounded-2xl bg-[#0B0D12]/95 backdrop-blur-2xl border border-white/[0.12] shadow-[0_24px_60px_rgba(0,0,0,0.92)] p-1.5 z-50 space-y-1.5">
+                <div className="px-2.5 pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                  {language === "ru" ? "Источник" : "Source"}
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-0.5">
                   {waveSources.map((src) => {
                     const selected = waveSource === src.id;
                     return (
@@ -258,19 +264,19 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
                         key={src.id}
                         type="button"
                         onClick={() => onChangeWaveSource(src.id)}
-                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-all cursor-pointer ${
+                        className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-xs transition-all cursor-pointer ${
                           selected
-                            ? "bg-white/[0.12] text-white font-medium"
-                            : "text-slate-300 hover:bg-white/[0.06] hover:text-white"
+                            ? "bg-white/[0.1] text-white font-medium"
+                            : "text-slate-300 hover:bg-white/[0.05] hover:text-white"
                         }`}
                       >
                         <span>{src.label}</span>
-                        {selected && <IconCheck size={14} className="text-cyanpulse" />}
+                        {selected && <IconCheck size={13} className="text-cyanpulse" />}
                       </button>
                     );
                   })}
                 </div>
-                <div className="pt-1.5 border-t border-white/[0.08] flex gap-1.5">
+                <div className="pt-1.5 border-t border-white/[0.07] flex gap-1.5">
                   <button
                     type="button"
                     disabled={waveLoading}
@@ -278,17 +284,27 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
                       onStartWave(waveSource);
                       setOpenMenu(null);
                     }}
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-cyanpulse text-[#050507] text-xs font-semibold hover:opacity-95 transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+                    style={{
+                      backgroundColor: `${coverPalette.primary}1F`,
+                      borderColor: `${coverPalette.primary}4D`,
+                    }}
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border text-xs font-medium text-white hover:brightness-125 transition-all active:scale-95 cursor-pointer disabled:opacity-50"
                   >
-                    <IconResonance size={13} />
+                    <span style={{ color: coverPalette.primary }}>
+                      <IconPlay size={12} />
+                    </span>
                     <span>
-                      {activeWave
+                      {waveLoading
                         ? language === "ru"
-                          ? "Обновить"
-                          : "Refresh"
-                        : language === "ru"
-                          ? "Включить"
-                          : "Start Wave"}
+                          ? "Подбор..."
+                          : "Loading..."
+                        : activeWave
+                          ? language === "ru"
+                            ? "Обновить"
+                            : "Refresh"
+                          : language === "ru"
+                            ? "Запустить"
+                            : "Start"}
                     </span>
                   </button>
                   {activeWave && (
@@ -298,9 +314,9 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
                         onStopWave();
                         setOpenMenu(null);
                       }}
-                      className="py-2 px-3 rounded-xl bg-white/[0.08] hover:bg-rose-500/20 text-xs font-medium text-slate-200 hover:text-rose-200 transition-all cursor-pointer"
+                      className="py-2 px-3 rounded-xl bg-white/[0.07] hover:bg-rose-500/20 text-xs font-medium text-slate-300 hover:text-rose-200 transition-all cursor-pointer"
                     >
-                      {language === "ru" ? "Выкл" : "Stop"}
+                      {language === "ru" ? "Стоп" : "Stop"}
                     </button>
                   )}
                 </div>
@@ -312,23 +328,23 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
             <button
               type="button"
               onClick={() => setOpenMenu((m) => (m === "style" ? null : "style"))}
-              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full bg-[#0E0F13]/90 border border-white/[0.12] backdrop-blur-xl text-xs font-medium text-white hover:bg-white/[0.08] transition-all cursor-pointer"
+              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.05] hover:bg-white/[0.09] border border-white/[0.1] backdrop-blur-xl text-xs font-medium text-slate-200 hover:text-white transition-all duration-200 cursor-pointer"
             >
-              <span className="text-slate-400">
-                {language === "ru" ? "Стиль" : "Style"}
-              </span>
-              <span className="text-slate-500">·</span>
+              <span
+                className="w-1.5 h-1.5 rounded-full"
+                style={{ backgroundColor: coverPalette.primary }}
+              />
               <span>{activeStyleLabel}</span>
               <IconChevronDown
-                size={13}
+                size={12}
                 className={`text-slate-400 transition-transform duration-200 ${openMenu === "style" ? "rotate-180" : ""}`}
               />
             </button>
 
             {openMenu === "style" && (
-              <div className="awase-menu-pop absolute right-0 mt-2 w-60 rounded-2xl bg-[#101217]/95 backdrop-blur-2xl border border-white/[0.14] shadow-[0_24px_48px_rgba(0,0,0,0.85)] p-2 z-30 space-y-1">
-                <div className="px-2 pt-1 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-                  {language === "ru" ? "Стиль визуализатора" : "Visualizer Style"}
+              <div className="awase-menu-pop absolute right-0 mt-2 w-56 max-h-[calc(100vh-190px)] overflow-y-auto awase-scroll rounded-2xl bg-[#0B0D12]/95 backdrop-blur-2xl border border-white/[0.12] shadow-[0_24px_60px_rgba(0,0,0,0.92)] p-1.5 z-50 space-y-0.5">
+                <div className="px-2.5 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                  {language === "ru" ? "Визуализация" : "Visualizer"}
                 </div>
                 {styles.map((s) => {
                   const selected = visualizerStyle === s.id;
@@ -340,17 +356,17 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
                         onSelectVisualizerStyle(s.id);
                         setOpenMenu(null);
                       }}
-                      className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-left transition-all cursor-pointer ${
+                      className={`w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-xl text-left transition-all cursor-pointer ${
                         selected
-                          ? "bg-white/[0.12] text-white"
-                          : "text-slate-300 hover:bg-white/[0.06] hover:text-white"
+                          ? "bg-white/[0.1] text-white"
+                          : "text-slate-300 hover:bg-white/[0.05] hover:text-white"
                       }`}
                     >
                       <div>
                         <div className="text-xs font-medium">{s.label}</div>
                         <div className="text-[11px] text-slate-400">{s.desc}</div>
                       </div>
-                      {selected && <IconCheck size={14} className="text-cyanpulse shrink-0" />}
+                      {selected && <IconCheck size={13} className="text-cyanpulse shrink-0" />}
                     </button>
                   );
                 })}

@@ -18,6 +18,25 @@ export interface ZapretStatus {
   progress?: string | null;
 }
 
+export interface LyricWord {
+  timeMs: number;
+  durationMs?: number;
+  text: string;
+}
+
+export interface LyricLine {
+  timeMs: number | null;
+  text: string;
+  words?: LyricWord[];
+}
+
+export interface LyricsPayload {
+  synced: boolean;
+  instrumental: boolean;
+  source: string;
+  lines: LyricLine[];
+}
+
 export type VisualizerStyle = "aura" | "silk" | "orbital";
 
 export type MiniVisualizerMode = "bars" | "wave" | "off";

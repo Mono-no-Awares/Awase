@@ -3,6 +3,7 @@ mod commands;
 mod db;
 mod discord_rpc;
 mod local_scanner;
+mod lyrics;
 mod models;
 mod providers;
 mod zapret;
@@ -212,6 +213,7 @@ pub fn run() {
             commands::set_ru_bypass_mode,
             commands::prefetch_track,
             commands::fetch_cover_cached,
+            commands::get_track_lyrics,
         ])
         .run(tauri::generate_context!())
         .expect("error while running awase");

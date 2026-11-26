@@ -13,6 +13,7 @@ use url::Url;
 use crate::audio_engine::AudioEngine;
 use crate::db::Database;
 use crate::local_scanner;
+use crate::lyrics::{self, LyricsPayload};
 use crate::models::{
     AudioDevice, AudioTelemetry, EqualizerState, LocalFolder, OAuthEventPayload, Playlist,
     SourceKind, SourceStatus, Track,
@@ -996,9 +997,15 @@ struct UserBackup {
     volume: Option<String>,
     muted: Option<String>,
     audio_device: Option<String>,
+    #[serde(default)]
+    sc_ru_bypass_mode: Option<String>,
+    #[serde(default)]
+    sc_ru_tripped: Option<String>,
     equalizer: EqualizerState,
     local_folders: Vec<String>,
     credentials: Vec<(String, Option<String>, Option<String>, Option<String>, Option<String>)>,
+    #[serde(default)]
+    tracks: Vec<Track>,
     playlists: Vec<(Playlist, Vec<Track>)>,
 }
 
@@ -1008,6 +1015,8 @@ pub fn export_user_backup(state: State<'_, AppState>, file_path: String) -> Resu
     let volume = state.db.get_setting("volume")?;
     let muted = state.db.get_setting("muted")?;
     let audio_device = state.db.get_setting("audio_device")?;
+    let sc_ru_bypass_mode = state.db.get_setting("sc_ru_bypass_mode")?;
+    let sc_ru_tripped = state.db.get_setting("sc_ru_tripped")?;
     let equalizer = state.db.get_equalizer()?;
     let local_folders = state
         .db
@@ -1023,6 +1032,8 @@ pub fn export_user_backup(state: State<'_, AppState>, file_path: String) -> Resu
         }
     }
 
+    let tracks = state.db.get_all_tracks_raw()?;
+
     let mut playlists = Vec::new();
     for pl in state.db.get_playlists()? {
         let pl_tracks = state.db.get_playlist_tracks(&pl.id)?;
@@ -1034,9 +1045,12 @@ pub fn export_user_backup(state: State<'_, AppState>, file_path: String) -> Resu
         volume,
         muted,
         audio_device,
+        sc_ru_bypass_mode,
+        sc_ru_tripped,
         equalizer,
         local_folders,
         credentials,
+        tracks,
         playlists,
     };
 
@@ -1069,6 +1083,16 @@ pub fn import_user_backup(
         state.db.save_setting("audio_device", dev)?;
         let _ = state.engine.set_output_device(dev);
     }
+    if let Some(ref mode_str) = backup.sc_ru_bypass_mode {
+        state.db.save_setting("sc_ru_bypass_mode", mode_str)?;
+        if let Ok(m) = mode_str.parse::<u8>() {
+            soundcloud::set_ru_bypass_mode(m);
+        }
+    }
+    if let Some(ref tripped_str) = backup.sc_ru_tripped {
+        state.db.save_setting("sc_ru_tripped", tripped_str)?;
+        soundcloud::set_ru_tripped(tripped_str == "true");
+    }
 
     state.db.save_equalizer(&backup.equalizer)?;
     state.engine.update_equalizer(backup.equalizer);
@@ -1082,6 +1106,14 @@ pub fn import_user_backup(
             label.as_deref(),
             extra.as_deref(),
         )?;
+    }
+
+    if !backup.tracks.is_empty() || !backup.playlists.is_empty() {
+        let _ = state.db.clear_library();
+    }
+
+    if !backup.tracks.is_empty() {
+        state.db.upsert_tracks(&backup.tracks)?;
     }
 
     for folder in backup.local_folders {
@@ -1250,6 +1282,26 @@ pub async fn fetch_cover_cached(
     };
     let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
     Ok(format!("data:{};base64,{}", mime, b64))
+}
+
+#[tauri::command]
+pub async fn get_track_lyrics(
+    state: State<'_, AppState>,
+    track: Track,
+) -> Result<LyricsPayload, String> {
+    let ym_token = state.db.get_credentials(SourceKind::Yandex)?.and_then(|c| c.0);
+    lyrics::get_lyrics(
+        &state.http,
+        &state.cache_dir,
+        &track.id,
+        &track.external_id,
+        track.source.as_str(),
+        &track.artist,
+        &track.title,
+        track.duration_ms,
+        ym_token.as_deref(),
+    )
+    .await
 }
 
 #[tauri::command]

@@ -27,6 +27,7 @@ import { Sidebar } from "./components/Sidebar";
 import { StageView } from "./components/StageView";
 import { ResonanceView } from "./components/ResonanceView";
 import { LibraryView } from "./components/LibraryView";
+import { LyricsView } from "./components/LyricsView";
 import { SourcesView } from "./components/SourcesView";
 import { QueueDrawer } from "./components/QueueDrawer";
 import { EqualizerPopover } from "./components/EqualizerPopover";
@@ -129,6 +130,7 @@ export const App: React.FC = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [queueOpen, setQueueOpen] = useState(false);
   const [eqOpen, setEqOpen] = useState(false);
+  const [lyricsOpen, setLyricsOpen] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Track[] | null>(null);
@@ -700,6 +702,7 @@ export const App: React.FC = () => {
               onChangeWaveSource={setWaveSource}
               onStartWave={handleStartWave}
               onStopWave={() => setActiveWave(null)}
+              onOpenLyrics={() => setLyricsOpen(true)}
               onTogglePlay={handleTogglePlay}
               onPrev={handlePrev}
               onNext={handleNext}
@@ -941,6 +944,7 @@ export const App: React.FC = () => {
               }}
               onExportBackup={async () => {
                 try {
+                  await api.saveUiPrefs(JSON.stringify(preferences)).catch(() => {});
                   const filePath = await save({
                     defaultPath: "awase-backup.json",
                     filters: [{ name: "Awase Backup", extensions: ["json"] }],
@@ -963,7 +967,14 @@ export const App: React.FC = () => {
                   if (filePath) {
                     const restoredPrefs = await api.importUserBackup(filePath);
                     if (restoredPrefs) {
-                      setPreferences((prev) => ({ ...prev, ...JSON.parse(restoredPrefs) }));
+                      const parsed = JSON.parse(restoredPrefs);
+                      setPreferences((prev) => {
+                        const merged = { ...prev, ...parsed };
+                        try {
+                          localStorage.setItem("awase_prefs", JSON.stringify(merged));
+                        } catch {}
+                        return merged;
+                      });
                     }
                     await api.getEqualizer().then(setEqState).catch(() => {});
                     await refreshLibrary();
@@ -1016,6 +1027,35 @@ export const App: React.FC = () => {
           await api.setEqualizer(next).catch(() => {});
         }}
         onClose={() => setEqOpen(false)}
+      />
+
+      <LyricsView
+        open={lyricsOpen}
+        language={preferences.language}
+        currentTrack={currentTrack}
+        telemetry={telemetry}
+        coverPalette={coverPalette}
+        shuffle={shuffle}
+        repeat={repeat}
+        onClose={() => setLyricsOpen(false)}
+        onTogglePlay={handleTogglePlay}
+        onPrev={handlePrev}
+        onNext={handleNext}
+        onSeek={(ms) => api.seekPlayback(ms).catch(() => {})}
+        onVolumeChange={(v) => {
+          setTelemetry((prev) => ({ ...prev, volume: v, muted: false }));
+          api.setVolume(v).catch(() => {});
+        }}
+        onToggleMute={() => {
+          const next = !telemetry.muted;
+          setTelemetry((prev) => ({ ...prev, muted: next }));
+          api.setMuted(next).catch(() => {});
+        }}
+        onToggleShuffle={() => setShuffle((s) => !s)}
+        onCycleRepeat={() =>
+          setRepeat((r) => (r === "off" ? "all" : r === "all" ? "one" : "off"))
+        }
+        onToggleLike={handleToggleLike}
       />
 
       {scRetryTrack && (
@@ -1089,6 +1129,7 @@ export const App: React.FC = () => {
         repeat={repeat}
         queueOpen={queueOpen}
         eqOpen={eqOpen}
+        lyricsOpen={lyricsOpen}
         resonanceActive={activeView === "resonance"}
         miniVisualizer={preferences.miniVisualizer}
         gamingMode={preferences.gamingMode}
@@ -1118,9 +1159,15 @@ export const App: React.FC = () => {
           setQueueOpen(false);
           setEqOpen((o) => !o);
         }}
-        onToggleResonance={() =>
-          setActiveView((v) => (v === "resonance" ? "stage" : "resonance"))
-        }
+        onToggleLyrics={() => {
+          setQueueOpen(false);
+          setEqOpen(false);
+          setLyricsOpen((l) => !l);
+        }}
+        onToggleResonance={() => {
+          setLyricsOpen(false);
+          setActiveView((v) => (v === "resonance" ? "stage" : "resonance"));
+        }}
       />
     </div>
   );

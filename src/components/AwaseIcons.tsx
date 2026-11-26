@@ -308,6 +308,14 @@ export const IconWinMin: React.FC<IconProps> = ({ className = "", size = 12 }) =
   </svg>
 );
 
+export const IconLyrics: React.FC<IconProps> = ({ className = "", size = 18 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" shapeRendering="geometricPrecision" className={className}>
+    <path d="M5 7H19M5 12H15M5 17H11" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+    <circle cx="17.5" cy="16.5" r="2.5" stroke="currentColor" strokeWidth="1.8" />
+    <path d="M20 16.5V10.5L17 11.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 export const IconWinMax: React.FC<IconProps> = ({ className = "", size = 12 }) => (
   <svg width={size} height={size} viewBox="0 0 12 12" fill="none" shapeRendering="geometricPrecision" className={className}>
     <rect x="2.5" y="2.5" width="7" height="7" rx="1.2" stroke="currentColor" strokeWidth="1.5" />

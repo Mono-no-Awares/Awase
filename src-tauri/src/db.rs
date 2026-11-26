@@ -160,6 +160,27 @@ impl Database {
         Ok(result)
     }
 
+    pub fn get_all_tracks_raw(&self) -> Result<Vec<Track>, String> {
+        let conn = self.conn.lock();
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, source, external_id, title, artist, album, duration_ms,
+                        cover_url, stream_url, local_path, codec, bitrate_kbps,
+                        sample_rate_hz, liked, added_at
+                 FROM tracks
+                 ORDER BY added_at DESC, title ASC",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], Self::row_to_track)
+            .map_err(|e| e.to_string())?;
+        let mut result = Vec::new();
+        for row in rows {
+            result.push(row.map_err(|e| e.to_string())?);
+        }
+        Ok(result)
+    }
+
     pub fn toggle_like(&self, track_id: &str) -> Result<bool, String> {
         let conn = self.conn.lock();
         let current: Option<i64> = conn

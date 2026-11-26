@@ -13,6 +13,7 @@ import { formatDuration, SOURCE_META } from "../lib/sources";
 import {
   IconEqualizer,
   IconHeart,
+  IconLyrics,
   IconMute,
   IconNext,
   IconPause,
@@ -36,6 +37,7 @@ interface PlayerDockProps {
   repeat: RepeatMode;
   queueOpen: boolean;
   eqOpen: boolean;
+  lyricsOpen: boolean;
   resonanceActive: boolean;
   miniVisualizer: MiniVisualizerMode;
   gamingMode?: boolean;
@@ -50,6 +52,7 @@ interface PlayerDockProps {
   onToggleLike: (trackId: string) => void;
   onToggleQueue: () => void;
   onToggleEq: () => void;
+  onToggleLyrics: () => void;
   onToggleResonance: () => void;
 }
 
@@ -62,6 +65,7 @@ export const PlayerDock: React.FC<PlayerDockProps> = ({
   repeat,
   queueOpen,
   eqOpen,
+  lyricsOpen,
   resonanceActive,
   miniVisualizer,
   gamingMode = false,
@@ -76,6 +80,7 @@ export const PlayerDock: React.FC<PlayerDockProps> = ({
   onToggleLike,
   onToggleQueue,
   onToggleEq,
+  onToggleLyrics,
   onToggleResonance,
 }) => {
   const t = TRANSLATIONS[language];
@@ -269,6 +274,20 @@ export const PlayerDock: React.FC<PlayerDockProps> = ({
       </div>
 
       <div className="relative z-10 flex items-center justify-end gap-1.5 w-[27%] min-w-[210px]">
+        <button
+          type="button"
+          onClick={onToggleLyrics}
+          title={language === "ru" ? "Текст песни" : "Lyrics"}
+          aria-label="Lyrics"
+          className={`p-2.5 rounded-full transition-all active:scale-95 cursor-pointer ${
+            lyricsOpen
+              ? "text-cyanpulse bg-white/[0.1]"
+              : "text-slate-300 hover:text-white hover:bg-white/[0.08]"
+          }`}
+        >
+          <IconLyrics size={19} />
+        </button>
+
         <button
           type="button"
           onClick={onToggleResonance}

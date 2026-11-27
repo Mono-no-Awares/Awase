@@ -28,6 +28,8 @@ import { StageView } from "./components/StageView";
 import { ResonanceView } from "./components/ResonanceView";
 import { LibraryView } from "./components/LibraryView";
 import { LyricsView } from "./components/LyricsView";
+import { WrappedView } from "./components/WrappedView";
+import { copyTrackShareCard } from "./lib/shareCard";
 import { SourcesView } from "./components/SourcesView";
 import { QueueDrawer } from "./components/QueueDrawer";
 import { EqualizerPopover } from "./components/EqualizerPopover";
@@ -61,6 +63,8 @@ const DEFAULT_PREFS: AppPreferences = {
   bgColor: "#050507",
   coverAdaptiveTheme: true,
   motionStyle: "silk",
+  shareCardEnabled: true,
+  wrappedEnabled: true,
   gamingMode: false,
   discordRpc: true,
   discordAppId: "",
@@ -142,6 +146,11 @@ export const App: React.FC = () => {
   const lastRpcTrackIdRef = useRef<string | null>(null);
   const lastRpcPosRef = useRef<{ pos: number; ts: number }>({ pos: 0, ts: 0 });
   const handleNextRef = useRef<() => void>(() => {});
+  const listenSessionRef = useRef<{
+    track: Track | null;
+    ms: number;
+    lastTick: number;
+  }>({ track: null, ms: 0, lastTick: 0 });
 
   const [telemetry, setTelemetry] = useState<AudioTelemetry>(INITIAL_TELEMETRY);
   const [coverPalette, setCoverPalette] = useState<CoverPalette>({
@@ -725,6 +734,54 @@ export const App: React.FC = () => {
     await handleNext();
   };
 
+  const handleShareCard = async () => {
+    if (!currentTrack) return;
+    try {
+      await copyTrackShareCard(currentTrack, coverPalette);
+      notify(
+        preferences.language === "ru"
+          ? "Карточка трека скопирована в буфер обмена"
+          : "Track card copied to clipboard",
+        "info"
+      );
+    } catch (err) {
+      notify(String(err), "error");
+    }
+  };
+
+  useEffect(() => {
+    const sess = listenSessionRef.current;
+    const now = performance.now();
+    if (sess.track && sess.track.id !== currentTrack?.id) {
+      if (sess.ms >= 8000 && preferences.wrappedEnabled !== false) {
+        api.recordListenEvent(sess.track, Math.round(sess.ms)).catch(() => {});
+      }
+      sess.track = currentTrack ?? null;
+      sess.ms = 0;
+      sess.lastTick = now;
+    } else if (!sess.track && currentTrack) {
+      sess.track = currentTrack;
+      sess.ms = 0;
+      sess.lastTick = now;
+    }
+  }, [currentTrack?.id, preferences.wrappedEnabled]);
+
+  useEffect(() => {
+    if (!telemetry.isPlaying || !currentTrack) {
+      listenSessionRef.current.lastTick = performance.now();
+      return;
+    }
+    const id = window.setInterval(() => {
+      const sess = listenSessionRef.current;
+      const now = performance.now();
+      if (sess.lastTick > 0) {
+        sess.ms += Math.min(2500, now - sess.lastTick);
+      }
+      sess.lastTick = now;
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [telemetry.isPlaying, currentTrack?.id]);
+
   const filteredLibraryTracks = useMemo(() => {
     if (selectedPlaylistId) return playlistTracks;
     if (sourceFilter === "all") return tracks;
@@ -822,6 +879,7 @@ export const App: React.FC = () => {
           }}
           likedCount={likedCount}
           totalCount={tracks.length}
+          wrappedEnabled={preferences.wrappedEnabled !== false}
         />
 
         <main className="flex-1 min-w-0 overflow-y-auto awase-scroll p-6">
@@ -883,6 +941,7 @@ export const App: React.FC = () => {
               onStopWave={() => setActiveWave(null)}
               onDislikeWave={handleDislikeWave}
               onOpenLyrics={() => setLyricsOpen(true)}
+              onShareCard={preferences.shareCardEnabled !== false ? handleShareCard : undefined}
               onTogglePlay={handleTogglePlay}
               onPrev={handlePrev}
               onNext={handleNext}
@@ -912,6 +971,13 @@ export const App: React.FC = () => {
                 setQueueOpen(false);
                 setEqOpen((o) => !o);
               }}
+            />
+          )}
+
+          {activeView === "wrapped" && (
+            <WrappedView
+              language={preferences.language}
+              coverPalette={coverPalette}
             />
           )}
 
@@ -1269,6 +1335,7 @@ export const App: React.FC = () => {
           setRepeat((r) => (r === "off" ? "all" : r === "all" ? "one" : "off"))
         }
         onToggleLike={handleToggleLike}
+        onShareCard={preferences.shareCardEnabled !== false ? handleShareCard : undefined}
       />
 
       {scRetryTrack && (

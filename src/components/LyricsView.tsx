@@ -43,6 +43,7 @@ interface LyricsViewProps {
   onToggleShuffle: () => void;
   onCycleRepeat: () => void;
   onToggleLike: (trackId: string) => void;
+  onShareCard?: () => void;
 }
 
 export const LyricsView: React.FC<LyricsViewProps> = ({
@@ -63,6 +64,7 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
   onToggleShuffle,
   onCycleRepeat,
   onToggleLike,
+  onShareCard,
 }) => {
   const t = TRANSLATIONS[language];
   const [lyrics, setLyrics] = useState<LyricsPayload | null>(null);
@@ -223,29 +225,46 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
           <IconChevronDown size={16} />
         </button>
 
-        {lyrics?.synced && (
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.06] border border-white/[0.1] backdrop-blur-xl text-[11px] font-medium text-white/75">
-            <span className="text-white/50 tracking-wide">{lyrics.source}</span>
-            <span className="text-white/20">·</span>
+        <div className="flex items-center gap-2">
+          {currentTrack && onShareCard && (
             <button
               type="button"
-              onClick={() => setOffsetMs((o) => o - 250)}
-              className="px-1.5 text-white/70 hover:text-white transition-colors cursor-pointer"
+              onClick={onShareCard}
+              title={language === "ru" ? "Скопировать карточку трека" : "Copy share card"}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.07] hover:bg-white/[0.14] border border-white/[0.1] backdrop-blur-xl text-[11px] font-medium text-white/85 hover:text-white transition-all active:scale-95 cursor-pointer"
             >
-              −
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="4" />
+                <circle cx="9" cy="9" r="1.5" />
+                <path d="m21 15-5-5L5 21" />
+              </svg>
+              <span>{language === "ru" ? "Карточка" : "Share"}</span>
             </button>
-            <span className="tabular-nums w-10 text-center text-white/90">
-              {(offsetMs / 1000).toFixed(1)}s
-            </span>
-            <button
-              type="button"
-              onClick={() => setOffsetMs((o) => o + 250)}
-              className="px-1.5 text-white/70 hover:text-white transition-colors cursor-pointer"
-            >
-              +
-            </button>
-          </div>
-        )}
+          )}
+          {lyrics?.synced && (
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.06] border border-white/[0.1] backdrop-blur-xl text-[11px] font-medium text-white/75">
+              <span className="text-white/50 tracking-wide">{lyrics.source}</span>
+              <span className="text-white/20">·</span>
+              <button
+                type="button"
+                onClick={() => setOffsetMs((o) => o - 250)}
+                className="px-1.5 text-white/70 hover:text-white transition-colors cursor-pointer"
+              >
+                −
+              </button>
+              <span className="tabular-nums w-10 text-center text-white/90">
+                {(offsetMs / 1000).toFixed(1)}s
+              </span>
+              <button
+                type="button"
+                onClick={() => setOffsetMs((o) => o + 250)}
+                className="px-1.5 text-white/70 hover:text-white transition-colors cursor-pointer"
+              >
+                +
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="relative z-10 flex-1 min-h-0 grid grid-cols-1 md:grid-cols-[310px_1fr] lg:grid-cols-[350px_1fr] gap-10 lg:gap-20 px-8 md:px-14 lg:px-20 pb-8 items-center max-w-[1180px] w-full mx-auto">

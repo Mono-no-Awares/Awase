@@ -4,7 +4,7 @@ export type SourceKind =
   | "spotify"
   | "soundcloud";
 
-export type ActiveView = "stage" | "resonance" | "library" | "sources";
+export type ActiveView = "stage" | "resonance" | "library" | "sources" | "wrapped";
 
 export type WaveSource = "yandex" | "soundcloud" | "mix";
 
@@ -64,6 +64,34 @@ export type FontFamilyChoice = "dm" | "grotesk" | "segoe" | "mono";
 
 export type MotionStyle = "fluid" | "snappy" | "silk";
 
+export interface WrappedTrackItem {
+  trackId: string;
+  title: string;
+  artist: string;
+  coverUrl: string | null;
+  source: string;
+  totalMs: number;
+  plays: number;
+}
+
+export interface WrappedArtistItem {
+  artist: string;
+  totalMs: number;
+  plays: number;
+}
+
+export interface WrappedStatsData {
+  totalMsAll: number;
+  totalMsWeek: number;
+  tracksPlayedAll: number;
+  tracksPlayedWeek: number;
+  topTracksWeek: WrappedTrackItem[];
+  topTracksAll: WrappedTrackItem[];
+  topArtistsWeek: WrappedArtistItem[];
+  topArtistsAll: WrappedArtistItem[];
+  topSource: string | null;
+}
+
 export interface AppPreferences {
   language: AppLanguage;
   fontScale: FontScale;
@@ -74,6 +102,8 @@ export interface AppPreferences {
   bgColor: string;
   coverAdaptiveTheme: boolean;
   motionStyle: MotionStyle;
+  shareCardEnabled?: boolean;
+  wrappedEnabled?: boolean;
   gamingMode: boolean;
   discordRpc: boolean;
   discordAppId: string;

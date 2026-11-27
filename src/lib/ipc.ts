@@ -112,4 +112,7 @@ export const api = {
   getCacheStats: () => invoke<import("../types").CacheStats>("get_cache_stats"),
   clearCache: () => invoke<import("../types").CacheStats>("clear_cache"),
   checkForUpdates: () => invoke<import("../types").UpdateCheckResult>("check_for_updates"),
+  recordListenEvent: (track: Track, listenedMs: number) =>
+    invoke<void>("record_listen_event", { track, listenedMs }),
+  getWrappedStats: () => invoke<import("../types").WrappedStatsData>("get_wrapped_stats"),
 };

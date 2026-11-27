@@ -774,7 +774,7 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
                       onClick={() =>
                         onUpdatePreferences({ ...preferences, motionStyle: ms.id })
                       }
-                      className={`py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
+                      className={`py-2 rounded-xl text-xs font-medium transition-all duration-200 cursor-pointer ${
                         preferences.motionStyle === ms.id
                           ? "bg-white text-[#050507]"
                           : "bg-black/40 text-slate-200 hover:bg-white/[0.09]"
@@ -1073,6 +1073,76 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
                   className="py-2 px-3 rounded-xl bg-white/[0.08] hover:bg-white/[0.14] border border-white/[0.12] text-xs font-medium text-white transition-all active:scale-95 cursor-pointer"
                 >
                   {t.importBackup}
+                </button>
+              </div>
+
+              <div className="pt-2 border-t border-white/[0.08] flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-xs font-medium text-white">
+                    {preferences.language === "ru"
+                      ? "Карточка «Сейчас играет»"
+                      : "Share Now Playing Card"}
+                  </div>
+                  <div className="text-[11px] text-slate-400">
+                    {preferences.language === "ru"
+                      ? "Кнопка копирования PNG-карточки в буфер обмена"
+                      : "Button to copy a styled PNG card to clipboard"}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={preferences.shareCardEnabled !== false}
+                  onClick={() =>
+                    onUpdatePreferences({
+                      ...preferences,
+                      shareCardEnabled: preferences.shareCardEnabled === false,
+                    })
+                  }
+                  className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 flex items-center shrink-0 cursor-pointer ${
+                    preferences.shareCardEnabled !== false ? "bg-cyanpulse" : "bg-white/[0.18]"
+                  }`}
+                >
+                  <span
+                    className={`w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
+                      preferences.shareCardEnabled !== false ? "translate-x-4" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div className="pt-2 border-t border-white/[0.08] flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-xs font-medium text-white">
+                    {preferences.language === "ru"
+                      ? "Статистика «Awase Wrapped»"
+                      : "Awase Wrapped Stats"}
+                  </div>
+                  <div className="text-[11px] text-slate-400">
+                    {preferences.language === "ru"
+                      ? "Локальная история часов и топ-5 треков/артистов"
+                      : "Local listening hours and Top 5 tracks & artists"}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={preferences.wrappedEnabled !== false}
+                  onClick={() =>
+                    onUpdatePreferences({
+                      ...preferences,
+                      wrappedEnabled: preferences.wrappedEnabled === false,
+                    })
+                  }
+                  className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 flex items-center shrink-0 cursor-pointer ${
+                    preferences.wrappedEnabled !== false ? "bg-cyanpulse" : "bg-white/[0.18]"
+                  }`}
+                >
+                  <span
+                    className={`w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
+                      preferences.wrappedEnabled !== false ? "translate-x-4" : "translate-x-0"
+                    }`}
+                  />
                 </button>
               </div>
 

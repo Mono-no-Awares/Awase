@@ -62,6 +62,7 @@ interface ResonanceViewProps {
   onStopWave: () => void;
   onDislikeWave?: () => void;
   onOpenLyrics: () => void;
+  onShareCard?: () => void;
 }
 
 export const ResonanceView: React.FC<ResonanceViewProps> = ({
@@ -95,6 +96,7 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
   onStopWave,
   onDislikeWave,
   onOpenLyrics,
+  onShareCard,
 }) => {
   const t = TRANSLATIONS[language];
   const meta = currentTrack ? SOURCE_META[currentTrack.source] : SOURCE_META.local;
@@ -209,6 +211,21 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
         </div>
 
         <div ref={menusRef} className="relative flex items-center gap-2">
+          {currentTrack && onShareCard && (
+            <button
+              type="button"
+              onClick={onShareCard}
+              title={language === "ru" ? "Скопировать карточку трека" : "Copy share card"}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.1] backdrop-blur-xl text-xs font-medium text-slate-200 hover:text-white transition-all duration-200 active:scale-95 cursor-pointer"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="4" />
+                <circle cx="9" cy="9" r="1.5" />
+                <path d="m21 15-5-5L5 21" />
+              </svg>
+              <span>{language === "ru" ? "Карточка" : "Share"}</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={onOpenLyrics}

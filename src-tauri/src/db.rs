@@ -3,6 +3,40 @@ use parking_lot::Mutex;
 use rusqlite::{params, Connection, OptionalExtension};
 use crate::models::{EqualizerState, LocalFolder, Playlist, SourceKind, Track};
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WrappedTrackItem {
+    pub track_id: String,
+    pub title: String,
+    pub artist: String,
+    pub cover_url: Option<String>,
+    pub source: String,
+    pub total_ms: u64,
+    pub plays: u64,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WrappedArtistItem {
+    pub artist: String,
+    pub total_ms: u64,
+    pub plays: u64,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WrappedStatsData {
+    pub total_ms_all: u64,
+    pub total_ms_week: u64,
+    pub tracks_played_all: u64,
+    pub tracks_played_week: u64,
+    pub top_tracks_week: Vec<WrappedTrackItem>,
+    pub top_tracks_all: Vec<WrappedTrackItem>,
+    pub top_artists_week: Vec<WrappedArtistItem>,
+    pub top_artists_all: Vec<WrappedArtistItem>,
+    pub top_source: Option<String>,
+}
+
 pub struct Database {
     conn: Mutex<Connection>,
 }
@@ -62,6 +96,17 @@ impl Database {
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL
              );
+             CREATE TABLE IF NOT EXISTS listening_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                track_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                artist TEXT NOT NULL,
+                cover_url TEXT,
+                source TEXT NOT NULL,
+                listened_ms INTEGER NOT NULL,
+                played_at INTEGER NOT NULL
+             );
+             CREATE INDEX IF NOT EXISTS idx_history_played_at ON listening_history(played_at);
              DELETE FROM tracks WHERE source = 'youtube';
              DELETE FROM playlists WHERE source = 'youtube';
              DELETE FROM credentials WHERE source = 'youtube';",
@@ -480,10 +525,144 @@ impl Database {
         )
         .map_err(|e| e.to_string())?;
         if !keep_credentials {
-            conn.execute_batch("DELETE FROM credentials; DELETE FROM settings;")
+            conn.execute_batch("DELETE FROM credentials; DELETE FROM settings; DELETE FROM listening_history;")
                 .map_err(|e| e.to_string())?;
         }
         Ok(())
+    }
+
+    pub fn record_listen_event(&self, track: &Track, listened_ms: u64) -> Result<(), String> {
+        if listened_ms < 8000 {
+            return Ok(());
+        }
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
+        let conn = self.conn.lock();
+        conn.execute(
+            "INSERT INTO listening_history (track_id, title, artist, cover_url, source, listened_ms, played_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![
+                track.id,
+                track.title,
+                track.artist,
+                track.cover_url,
+                track.source.as_str(),
+                listened_ms as i64,
+                now
+            ],
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    pub fn get_wrapped_stats(&self) -> Result<WrappedStatsData, String> {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
+        let week_cutoff = now.saturating_sub(7 * 86400);
+        let conn = self.conn.lock();
+
+        let (total_ms_all, tracks_played_all): (i64, i64) = conn
+            .query_row(
+                "SELECT COALESCE(SUM(listened_ms), 0), COUNT(*) FROM listening_history",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .map_err(|e| e.to_string())?;
+
+        let (total_ms_week, tracks_played_week): (i64, i64) = conn
+            .query_row(
+                "SELECT COALESCE(SUM(listened_ms), 0), COUNT(*) FROM listening_history WHERE played_at >= ?1",
+                params![week_cutoff],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .map_err(|e| e.to_string())?;
+
+        let query_top_tracks = |min_ts: i64| -> Result<Vec<WrappedTrackItem>, String> {
+            let mut stmt = conn
+                .prepare(
+                    "SELECT track_id, title, artist, MAX(cover_url), source, SUM(listened_ms) AS total_ms, COUNT(*) AS plays
+                     FROM listening_history
+                     WHERE played_at >= ?1
+                     GROUP BY track_id
+                     ORDER BY total_ms DESC
+                     LIMIT 5",
+                )
+                .map_err(|e| e.to_string())?;
+            let rows = stmt
+                .query_map(params![min_ts], |r| {
+                    Ok(WrappedTrackItem {
+                        track_id: r.get(0)?,
+                        title: r.get(1)?,
+                        artist: r.get(2)?,
+                        cover_url: r.get(3)?,
+                        source: r.get(4)?,
+                        total_ms: r.get::<_, i64>(5)? as u64,
+                        plays: r.get::<_, i64>(6)? as u64,
+                    })
+                })
+                .map_err(|e| e.to_string())?;
+            let mut out = Vec::new();
+            for row in rows {
+                if let Ok(item) = row {
+                    out.push(item);
+                }
+            }
+            Ok(out)
+        };
+
+        let query_top_artists = |min_ts: i64| -> Result<Vec<WrappedArtistItem>, String> {
+            let mut stmt = conn
+                .prepare(
+                    "SELECT artist, SUM(listened_ms) AS total_ms, COUNT(*) AS plays
+                     FROM listening_history
+                     WHERE played_at >= ?1 AND TRIM(artist) != ''
+                     GROUP BY artist
+                     ORDER BY total_ms DESC
+                     LIMIT 5",
+                )
+                .map_err(|e| e.to_string())?;
+            let rows = stmt
+                .query_map(params![min_ts], |r| {
+                    Ok(WrappedArtistItem {
+                        artist: r.get(0)?,
+                        total_ms: r.get::<_, i64>(1)? as u64,
+                        plays: r.get::<_, i64>(2)? as u64,
+                    })
+                })
+                .map_err(|e| e.to_string())?;
+            let mut out = Vec::new();
+            for row in rows {
+                if let Ok(item) = row {
+                    out.push(item);
+                }
+            }
+            Ok(out)
+        };
+
+        let top_source: Option<String> = conn
+            .query_row(
+                "SELECT source FROM listening_history GROUP BY source ORDER BY SUM(listened_ms) DESC LIMIT 1",
+                [],
+                |r| r.get(0),
+            )
+            .optional()
+            .map_err(|e| e.to_string())?;
+
+        Ok(WrappedStatsData {
+            total_ms_all: total_ms_all as u64,
+            total_ms_week: total_ms_week as u64,
+            tracks_played_all: tracks_played_all as u64,
+            tracks_played_week: tracks_played_week as u64,
+            top_tracks_week: query_top_tracks(week_cutoff)?,
+            top_tracks_all: query_top_tracks(0)?,
+            top_artists_week: query_top_artists(week_cutoff)?,
+            top_artists_all: query_top_artists(0)?,
+            top_source,
+        })
     }
 
     pub fn save_setting(&self, key: &str, value: &str) -> Result<(), String> {

@@ -1688,6 +1688,20 @@ fn parse_ver_tuple(v: &str) -> (u64, u64, u64) {
 }
 
 #[tauri::command]
+pub fn record_listen_event(
+    state: State<'_, AppState>,
+    track: Track,
+    listened_ms: u64,
+) -> Result<(), String> {
+    state.db.record_listen_event(&track, listened_ms)
+}
+
+#[tauri::command]
+pub fn get_wrapped_stats(state: State<'_, AppState>) -> Result<crate::db::WrappedStatsData, String> {
+    state.db.get_wrapped_stats()
+}
+
+#[tauri::command]
 pub async fn check_for_updates(state: State<'_, AppState>) -> Result<UpdateCheckResult, String> {
     let current_version = env!("CARGO_PKG_VERSION").to_string();
     let resp = state

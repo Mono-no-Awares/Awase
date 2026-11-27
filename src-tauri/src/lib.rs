@@ -247,6 +247,8 @@ pub fn run() {
             commands::get_cache_stats,
             commands::clear_cache,
             commands::check_for_updates,
+            commands::record_listen_event,
+            commands::get_wrapped_stats,
         ])
         .run(tauri::generate_context!())
         .expect("error while running awase");

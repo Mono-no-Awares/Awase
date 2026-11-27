@@ -28,6 +28,7 @@ interface SidebarProps {
   onDeletePlaylist: (id: string) => void;
   likedCount: number;
   totalCount: number;
+  wrappedEnabled?: boolean;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -44,6 +45,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onDeletePlaylist,
   likedCount,
   totalCount,
+  wrappedEnabled = true,
 }) => {
   const [creating, setCreating] = useState(false);
   const [draftName, setDraftName] = useState("");
@@ -66,6 +68,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: "stage", label: t.navHome, icon: <IconStage size={19} /> },
     { id: "resonance", label: t.navWave, icon: <IconResonance size={19} /> },
     { id: "library", label: t.navLibrary, icon: <IconLibrary size={19} /> },
+    ...(wrappedEnabled
+      ? [
+          {
+            id: "wrapped" as ActiveView,
+            label: language === "ru" ? "Итоги" : "Wrapped",
+            icon: (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 3v18h18" />
+                <path d="M18 17V9" />
+                <path d="M13 17V5" />
+                <path d="M8 17v-3" />
+              </svg>
+            ),
+          },
+        ]
+      : []),
     { id: "sources", label: t.navSettings, icon: <IconSources size={19} /> },
   ];
 

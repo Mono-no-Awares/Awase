@@ -968,6 +968,7 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
                           {
                             key: "rpcShowPaused",
                             label: preferences.language === "ru" ? "Показывать паузу" : "Show When Paused",
+                            invertDefault: true,
                           },
                           {
                             key: "rpcShowButtons",

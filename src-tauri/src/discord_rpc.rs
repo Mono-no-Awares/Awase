@@ -6,6 +6,8 @@ use std::io::{Read, Write};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const DEFAULT_DISCORD_APP_ID: &str = "1575483583013982429";
+const AWASE_ICON_URL: &str =
+    "https://raw.githubusercontent.com/Mono-no-Awares/Awase/main/src-tauri/icons/icon.png";
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -35,7 +37,7 @@ pub struct DiscordPresencePayload {
     pub rpc_style: String,
     #[serde(default = "default_true")]
     pub rpc_show_idle: bool,
-    #[serde(default = "default_true")]
+    #[serde(default)]
     pub rpc_show_paused: bool,
     #[serde(default)]
     pub rpc_hide_on_pause: bool,
@@ -248,6 +250,7 @@ pub fn update_presence(opts: DiscordPresencePayload) {
             "details": idle_detail,
             "state": "Idle · Awase Player",
             "assets": {
+                "large_image": AWASE_ICON_URL,
                 "large_text": "Awase Music Player"
             }
         })
@@ -354,6 +357,8 @@ pub fn update_presence(opts: DiscordPresencePayload) {
             .filter(|u| u.starts_with("https://") && u.len() < 512)
         {
             act["assets"]["large_image"] = json!(url);
+        } else {
+            act["assets"]["large_image"] = json!(AWASE_ICON_URL);
         }
 
         if opts.is_playing && opts.rpc_show_timestamps && opts.duration_ms > 0 {

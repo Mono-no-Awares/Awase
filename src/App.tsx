@@ -65,7 +65,6 @@ const DEFAULT_PREFS: AppPreferences = {
   motionStyle: "silk",
   shareCardEnabled: true,
   wrappedEnabled: true,
-  spinCover: false,
   gamingMode: false,
   discordRpc: true,
   discordAppId: "",
@@ -990,7 +989,6 @@ export const App: React.FC = () => {
               statuses={statuses}
               coverPalette={coverPalette}
               gamingMode={preferences.gamingMode}
-              spinCover={preferences.spinCover === true}
               onPlayTrack={handlePlayTrack}
               onTogglePlay={handleTogglePlay}
               onToggleLike={handleToggleLike}
@@ -1032,7 +1030,6 @@ export const App: React.FC = () => {
               queueOpen={queueOpen && !activeWave}
               eqOpen={eqOpen}
               gamingMode={preferences.gamingMode}
-              spinCover={preferences.spinCover === true}
               waveSource={waveSource}
               activeWave={activeWave}
               waveLoading={waveLoading}

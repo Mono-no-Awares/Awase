@@ -854,39 +854,6 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
               </div>
 
               <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-xs font-medium text-white">
-                    {preferences.language === "ru" ? "Вращать обложку трека" : "Spin Cover Art"}
-                  </div>
-                  <div className="text-[11px] text-slate-400 leading-snug">
-                    {preferences.language === "ru"
-                      ? "Делает обложку круглой и плавно вращает её как винил во время воспроизведения"
-                      : "Turns album art circular and smoothly rotates it like a vinyl record while playing"}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={preferences.spinCover === true}
-                  onClick={() =>
-                    onUpdatePreferences({
-                      ...preferences,
-                      spinCover: preferences.spinCover !== true,
-                    })
-                  }
-                  className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 flex items-center shrink-0 cursor-pointer ${
-                    preferences.spinCover === true ? "bg-cyanpulse" : "bg-white/[0.15]"
-                  }`}
-                >
-                  <span
-                    className={`w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
-                      preferences.spinCover === true ? "translate-x-4" : "translate-x-0"
-                    }`}
-                  />
-                </button>
-              </div>
-
-              <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div
                     className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border ${

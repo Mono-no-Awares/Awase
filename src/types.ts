@@ -106,7 +106,6 @@ export interface AppPreferences {
   motionStyle: MotionStyle;
   shareCardEnabled?: boolean;
   wrappedEnabled?: boolean;
-  spinCover?: boolean;
   gamingMode: boolean;
   discordRpc: boolean;
   discordAppId: string;

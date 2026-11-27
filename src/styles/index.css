@@ -185,24 +185,6 @@ textarea {
   }
 }
 
-@keyframes awaseSpinSlow {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.awase-cover-spin {
-  animation: awaseSpinSlow 16s linear infinite;
-}
-
-.awase-cover-spin-paused {
-  animation: awaseSpinSlow 16s linear infinite;
-  animation-play-state: paused;
-}
-
 .awase-range {
   -webkit-appearance: none;
   appearance: none;

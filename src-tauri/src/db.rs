@@ -735,4 +735,19 @@ impl Database {
             added_at: row.get(14)?,
         })
     }
+
+    pub fn get_liked_track_ids(&self) -> Result<std::collections::HashSet<String>, String> {
+        let conn = self.conn.lock();
+        let mut stmt = conn
+            .prepare("SELECT id FROM tracks WHERE liked = 1")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |row| row.get::<_, String>(0))
+            .map_err(|e| e.to_string())?;
+        let mut set = std::collections::HashSet::new();
+        for id in rows.flatten() {
+            set.insert(id);
+        }
+        Ok(set)
+    }
 }

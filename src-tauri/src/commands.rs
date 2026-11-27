@@ -1686,6 +1686,49 @@ pub fn clear_cache(state: State<'_, AppState>) -> CacheStats {
     }
 }
 
+#[tauri::command]
+pub fn cleanup_non_favorite_cache(state: State<'_, AppState>, max_age_days: u64) -> CacheStats {
+    if max_age_days > 0 {
+        let liked = state.db.get_liked_track_ids().unwrap_or_default();
+        let playing_id = state.engine.get_telemetry().current_track_id;
+        let max_age = std::time::Duration::from_secs(max_age_days.saturating_mul(86400));
+        let now = std::time::SystemTime::now();
+        if let Ok(rd) = std::fs::read_dir(&state.cache_dir) {
+            for entry in rd.flatten() {
+                let p = entry.path();
+                if p.is_dir() {
+                    continue;
+                }
+                let stem = p
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("")
+                    .to_string();
+                if stem.is_empty() || liked.contains(&stem) {
+                    continue;
+                }
+                if playing_id.as_deref() == Some(stem.as_str()) {
+                    continue;
+                }
+                if let Ok(meta) = entry.metadata() {
+                    if let Ok(modified) = meta.modified() {
+                        if let Ok(elapsed) = now.duration_since(modified) {
+                            if elapsed >= max_age {
+                                let _ = std::fs::remove_file(&p);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    let (total_bytes, file_count) = dir_stats(&state.cache_dir);
+    CacheStats {
+        total_bytes,
+        file_count,
+    }
+}
+
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateCheckResult {

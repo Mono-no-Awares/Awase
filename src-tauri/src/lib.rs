@@ -248,6 +248,7 @@ pub fn run() {
             commands::get_track_lyrics,
             commands::get_cache_stats,
             commands::clear_cache,
+            commands::cleanup_non_favorite_cache,
             commands::check_for_updates,
             commands::record_listen_event,
             commands::get_wrapped_stats,

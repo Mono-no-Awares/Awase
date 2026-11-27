@@ -106,12 +106,15 @@ export interface AppPreferences {
   motionStyle: MotionStyle;
   shareCardEnabled?: boolean;
   wrappedEnabled?: boolean;
+  ambientGradient?: boolean;
+  cacheAutoCleanDays?: number;
   gamingMode: boolean;
   discordRpc: boolean;
   discordAppId: string;
   rpcStyle?: RpcStyle;
   rpcShowIdle?: boolean;
   rpcShowPaused?: boolean;
+  rpcHideOnPause?: boolean;
   rpcShowButtons?: boolean;
   rpcShowTimestamps?: boolean;
   rpcShowSource?: boolean;

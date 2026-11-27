@@ -106,6 +106,7 @@ export const api = {
     rpcStyle?: string;
     rpcShowIdle?: boolean;
     rpcShowPaused?: boolean;
+    rpcHideOnPause?: boolean;
     rpcShowButtons?: boolean;
     rpcShowTimestamps?: boolean;
     rpcShowSource?: boolean;
@@ -125,6 +126,8 @@ export const api = {
   getTrackLyrics: (track: Track) => invoke<LyricsPayload>("get_track_lyrics", { track }),
   getCacheStats: () => invoke<import("../types").CacheStats>("get_cache_stats"),
   clearCache: () => invoke<import("../types").CacheStats>("clear_cache"),
+  cleanupNonFavoriteCache: (maxAgeDays: number) =>
+    invoke<import("../types").CacheStats>("cleanup_non_favorite_cache", { maxAgeDays }),
   checkForUpdates: () => invoke<import("../types").UpdateCheckResult>("check_for_updates"),
   recordListenEvent: (track: Track, listenedMs: number) =>
     invoke<void>("record_listen_event", { track, listenedMs }),

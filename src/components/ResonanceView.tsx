@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import type {
   AppLanguage,
   AudioTelemetry,
+  Playlist,
   RepeatMode,
   Track,
   VisualizerStyle,
@@ -63,6 +64,8 @@ interface ResonanceViewProps {
   onDislikeWave?: () => void;
   onOpenLyrics: () => void;
   onShareCard?: () => void;
+  playlists?: Playlist[];
+  onAddToPlaylist?: (playlistId: string, track: Track) => void;
 }
 
 export const ResonanceView: React.FC<ResonanceViewProps> = ({
@@ -97,6 +100,8 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
   onDislikeWave,
   onOpenLyrics,
   onShareCard,
+  playlists = [],
+  onAddToPlaylist,
 }) => {
   const t = TRANSLATIONS[language];
   const meta = currentTrack ? SOURCE_META[currentTrack.source] : SOURCE_META.local;
@@ -104,9 +109,10 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
   const [scrubMs, setScrubMs] = useState<number | null>(null);
   const [isScrubbing, setIsScrubbing] = useState(false);
   const seekHoldRef = useRef<{ target: number; until: number } | null>(null);
-  const [openMenu, setOpenMenu] = useState<"wave" | "style" | null>(null);
+  const [openMenu, setOpenMenu] = useState<"wave" | "style" | "playlist" | null>(null);
   const [coverSrc, setCoverSrc] = useState<string | null>(currentTrack?.coverUrl ?? null);
   const menusRef = useRef<HTMLDivElement | null>(null);
+  const playlistMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const hold = seekHoldRef.current;
@@ -143,7 +149,10 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
   useEffect(() => {
     if (!openMenu) return;
     const onDown = (e: MouseEvent) => {
-      if (menusRef.current && !menusRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const inTopMenus = menusRef.current && menusRef.current.contains(target);
+      const inPlMenu = playlistMenuRef.current && playlistMenuRef.current.contains(target);
+      if (!inTopMenus && !inPlMenu) {
         setOpenMenu(null);
       }
     };
@@ -517,6 +526,60 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
               >
                 <IconHeart size={18} filled={currentTrack.liked} />
               </button>
+            )}
+            {currentTrack && onAddToPlaylist && (
+              <div ref={playlistMenuRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setOpenMenu((m) => (m === "playlist" ? null : "playlist"))
+                  }
+                  title={language === "ru" ? "Добавить в плейлист" : "Add to playlist"}
+                  aria-label="Add to playlist"
+                  className={`p-2 rounded-full transition-colors cursor-pointer ${
+                    openMenu === "playlist"
+                      ? "text-white bg-white/[0.12]"
+                      : "text-slate-300 hover:text-white hover:bg-white/[0.08]"
+                  }`}
+                >
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M11 12H3" />
+                    <path d="M16 6H3" />
+                    <path d="M16 18H3" />
+                    <path d="M18 9v6" />
+                    <path d="M21 12h-6" />
+                  </svg>
+                </button>
+                {openMenu === "playlist" && (
+                  <div className="awase-menu-pop absolute left-0 bottom-full mb-2.5 w-56 max-h-60 overflow-y-auto awase-scroll rounded-2xl awase-glass border border-white/[0.1] shadow-[0_20px_50px_rgba(0,0,0,0.88)] p-2 z-50 space-y-1">
+                    <div className="px-2.5 pt-1 pb-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                      {language === "ru" ? "Добавить в плейлист" : "Add to Playlist"}
+                    </div>
+                    {playlists.length === 0 ? (
+                      <div className="px-2.5 py-2 text-xs text-slate-400">
+                        {language === "ru" ? "Нет плейлистов" : "No playlists yet"}
+                      </div>
+                    ) : (
+                      playlists.map((pl) => (
+                        <button
+                          key={pl.id}
+                          type="button"
+                          onClick={() => {
+                            onAddToPlaylist(pl.id, currentTrack);
+                            setOpenMenu(null);
+                          }}
+                          className="w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-xs text-slate-200 hover:bg-white/[0.08] hover:text-white transition-colors text-left cursor-pointer"
+                        >
+                          <span className="truncate">{pl.name}</span>
+                          <span className="text-[10px] text-slate-400 ml-2 shrink-0">
+                            {pl.trackCount}
+                          </span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
             )}
             {activeWave && currentTrack && onDislikeWave && (
               <button

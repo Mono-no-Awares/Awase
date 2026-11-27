@@ -37,6 +37,8 @@ pub struct DiscordPresencePayload {
     pub rpc_show_idle: bool,
     #[serde(default = "default_true")]
     pub rpc_show_paused: bool,
+    #[serde(default)]
+    pub rpc_hide_on_pause: bool,
     #[serde(default = "default_true")]
     pub rpc_show_buttons: bool,
     #[serde(default = "default_true")]
@@ -205,6 +207,11 @@ pub fn update_presence(opts: DiscordPresencePayload) {
     let has_track = opts.title.as_deref().is_some_and(|t| !t.trim().is_empty());
 
     if !has_track && !opts.rpc_show_idle {
+        clear_activity(&mut guard);
+        return;
+    }
+
+    if has_track && !opts.is_playing && opts.rpc_hide_on_pause {
         clear_activity(&mut guard);
         return;
     }

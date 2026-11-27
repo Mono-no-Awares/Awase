@@ -65,12 +65,15 @@ const DEFAULT_PREFS: AppPreferences = {
   motionStyle: "silk",
   shareCardEnabled: true,
   wrappedEnabled: true,
+  ambientGradient: false,
+  cacheAutoCleanDays: 7,
   gamingMode: false,
   discordRpc: true,
   discordAppId: "",
   rpcStyle: "detailed",
   rpcShowIdle: true,
   rpcShowPaused: true,
+  rpcHideOnPause: false,
   rpcShowButtons: true,
   rpcShowTimestamps: true,
   rpcShowSource: true,
@@ -239,18 +242,45 @@ export const App: React.FC = () => {
   }, [notify]);
 
   useEffect(() => {
+    const onContextMenu = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      e.preventDefault();
+    };
+    window.addEventListener("contextmenu", onContextMenu);
+    return () => window.removeEventListener("contextmenu", onContextMenu);
+  }, []);
+
+  useEffect(() => {
+    let autoCleanDays = 7;
     api
       .getUiPrefs()
       .then((raw) => {
         if (raw) {
-          setPreferences((prev) => ({ ...prev, ...JSON.parse(raw) }));
+          const parsed = JSON.parse(raw);
+          if (typeof parsed.cacheAutoCleanDays === "number") {
+            autoCleanDays = parsed.cacheAutoCleanDays;
+          }
+          setPreferences((prev) => ({ ...prev, ...parsed }));
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        if (autoCleanDays > 0) {
+          api.cleanupNonFavoriteCache(autoCleanDays).catch(() => {});
+        }
+      });
 
     Promise.all([
       refreshLibrary(),
-      new Promise((resolve) => window.setTimeout(resolve, 420)),
+      new Promise((resolve) => window.setTimeout(resolve, 950)),
     ]).finally(() => {
       setBooting(false);
     });
@@ -389,6 +419,7 @@ export const App: React.FC = () => {
           rpcStyle: preferences.rpcStyle ?? "detailed",
           rpcShowIdle: preferences.rpcShowIdle !== false,
           rpcShowPaused: preferences.rpcShowPaused !== false,
+          rpcHideOnPause: preferences.rpcHideOnPause === true,
           rpcShowButtons: preferences.rpcShowButtons !== false,
           rpcShowTimestamps: preferences.rpcShowTimestamps !== false,
           rpcShowSource: preferences.rpcShowSource !== false,
@@ -402,6 +433,7 @@ export const App: React.FC = () => {
       preferences.rpcStyle,
       preferences.rpcShowIdle,
       preferences.rpcShowPaused,
+      preferences.rpcHideOnPause,
       preferences.rpcShowButtons,
       preferences.rpcShowTimestamps,
       preferences.rpcShowSource,
@@ -438,6 +470,7 @@ export const App: React.FC = () => {
     preferences.rpcStyle,
     preferences.rpcShowIdle,
     preferences.rpcShowPaused,
+    preferences.rpcHideOnPause,
     preferences.rpcShowButtons,
     preferences.rpcShowTimestamps,
     preferences.rpcShowSource,
@@ -894,23 +927,38 @@ export const App: React.FC = () => {
 
   return (
     <div className="h-screen w-screen flex flex-col bg-[#050507] text-[#F1F5F9] overflow-hidden relative">
+      {preferences.ambientGradient && (
+        <div
+          className="pointer-events-none fixed inset-0 z-0 transition-all duration-1000"
+          style={{
+            background: `
+              radial-gradient(circle at 18% 36%, ${coverPalette.glow}, transparent 54%),
+              radial-gradient(circle at 82% 24%, ${coverPalette.secondary}26, transparent 52%),
+              linear-gradient(155deg, ${coverPalette.primary}1C 0%, #060609 54%, #050507 100%)
+            `,
+          }}
+        />
+      )}
       <div
-        className={`fixed inset-0 z-[60] flex flex-col items-center justify-center gap-5 bg-[#050507] transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        className={`fixed inset-0 z-[60] flex flex-col items-center justify-center gap-5 bg-[#050507] transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
           booting
             ? "opacity-100 scale-100 pointer-events-auto"
-            : "opacity-0 scale-[1.03] pointer-events-none"
+            : "opacity-0 scale-[1.035] pointer-events-none"
         }`}
+        style={{
+          background:
+            "radial-gradient(circle at 50% 45%, rgba(167, 139, 250, 0.14), #050507 62%)",
+        }}
       >
         <div className="relative flex items-center justify-center">
-          <span className="absolute w-24 h-24 rounded-full border border-cyanpulse/30 animate-ping" />
-          <span className="absolute w-20 h-20 rounded-full bg-cyanpulse/15 blur-xl" />
-          <AwaseLogo size={54} className="relative z-10" />
+          <span className="absolute w-24 h-24 rounded-full bg-violet-400/20 blur-2xl animate-pulse" />
+          <AwaseLogo size={58} className="relative z-10 transition-transform duration-700" />
         </div>
         <div className="font-display text-sm tracking-[0.28em] text-slate-200 uppercase">
           AWASE
         </div>
         <div className="w-36 h-1 rounded-full bg-white/[0.08] overflow-hidden relative">
-          <div className="h-full w-full rounded-full bg-gradient-to-r from-transparent via-cyanpulse to-transparent animate-pulse" />
+          <div className="h-full w-full rounded-full bg-gradient-to-r from-transparent via-violet-300 to-transparent animate-pulse" />
         </div>
       </div>
 
@@ -1039,6 +1087,16 @@ export const App: React.FC = () => {
               onDislikeWave={handleDislikeWave}
               onOpenLyrics={() => setLyricsOpen(true)}
               onShareCard={preferences.shareCardEnabled !== false ? handleShareCard : undefined}
+              playlists={playlists}
+              onAddToPlaylist={async (playlistId, track) => {
+                try {
+                  await api.addTrackToPlaylist(playlistId, track);
+                  await refreshLibrary();
+                  notify(`+ ${track.title}`);
+                } catch (err) {
+                  notify(String(err), "error");
+                }
+              }}
               onTogglePlay={handleTogglePlay}
               onPrev={handlePrev}
               onNext={handleNext}
@@ -1475,34 +1533,33 @@ export const App: React.FC = () => {
 
       {toast && (
         <div
-          className={`fixed top-16 right-5 z-[60] max-w-[360px] w-auto px-4 py-3 rounded-2xl border backdrop-blur-2xl shadow-[0_20px_50px_rgba(0,0,0,0.72)] flex items-center gap-3 awase-view-enter ${
+          className={`fixed bottom-28 right-6 z-[60] max-w-[360px] w-auto px-3.5 py-2.5 rounded-2xl border backdrop-blur-2xl shadow-[0_18px_48px_rgba(0,0,0,0.78)] flex items-center gap-3 awase-view-enter ${
             toast.tone === "error"
-              ? "bg-[#1A1015]/95 border-rose-500/30 text-rose-100"
-              : "bg-[#11131A]/95 border-white/[0.12] text-white"
+              ? "bg-[#170E12]/95 border-rose-500/30 text-rose-100"
+              : "bg-[#0B0B0E]/95 border-white/[0.12] text-white"
           }`}
         >
           <div
-            className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border ${
+            className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 border ${
               toast.tone === "error"
                 ? "bg-rose-500/15 border-rose-500/25 text-rose-400"
-                : "bg-white/[0.07] border-white/[0.1] text-slate-200"
+                : "bg-white/[0.08] border-white/[0.12] text-white"
             }`}
           >
             {toast.tone === "error" ? (
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10" />
                 <line x1="12" y1="8" x2="12" y2="12" />
                 <line x1="12" y1="16" x2="12.01" y2="16" />
               </svg>
             ) : (
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="5 4 15 12 5 20 5 4" />
-                <line x1="19" y1="5" x2="19" y2="19" />
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
               </svg>
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="text-[12.5px] font-medium leading-snug text-white/95">
+            <div className="text-xs font-medium leading-snug text-white/95">
               {toast.text}
             </div>
           </div>

@@ -98,6 +98,7 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
   onOpenExternalUrl,
 }) => {
   const [expanded, setExpanded] = useState<SourceKind | null>(null);
+  const [openAppearSec, setOpenAppearSec] = useState<"general" | "theme" | "motion" | null>("general");
   const [yandexToken, setYandexToken] = useState("");
   const [yandexOpened, setYandexOpened] = useState(false);
   const [spotifyPlaylistInput, setSpotifyPlaylistInput] = useState("");
@@ -609,251 +610,354 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
       )}
 
       {settingsTab === "appearance" && (
-        <div className="awase-card rounded-2xl p-5 space-y-4 awase-view-enter">
-          <h2 className="font-display font-semibold text-base text-white">
-            {t.appearanceHeader}
-          </h2>
-
-          <div className="space-y-3.5">
-            <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                {t.languageLabel}
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                {(
-                  [
-                    { id: "ru", label: "Русский" },
-                    { id: "en", label: "English" },
-                  ] as Array<{ id: AppLanguage; label: string }>
-                ).map((lang) => (
-                  <button
-                    key={lang.id}
-                    type="button"
-                    onClick={() =>
-                      onUpdatePreferences({ ...preferences, language: lang.id })
-                    }
-                    className={`py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
-                      preferences.language === lang.id
-                        ? "bg-white text-[#090B10]"
-                        : "bg-black/30 text-slate-200 hover:bg-white/[0.09]"
-                    }`}
-                  >
-                    {lang.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                {t.fontSizeLabel}
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                {(
-                  [
-                    { id: "sm", label: t.fontSizeSmall },
-                    { id: "md", label: t.fontSizeMedium },
-                    { id: "lg", label: t.fontSizeLarge },
-                  ] as Array<{ id: FontScale; label: string }>
-                ).map((sz) => (
-                  <button
-                    key={sz.id}
-                    type="button"
-                    onClick={() =>
-                      onUpdatePreferences({ ...preferences, fontScale: sz.id })
-                    }
-                    className={`py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
-                      preferences.fontScale === sz.id
-                        ? "bg-white text-[#090B10]"
-                        : "bg-black/30 text-slate-200 hover:bg-white/[0.09]"
-                    }`}
-                  >
-                    {sz.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                {t.fontFamilyLabel}
-              </label>
-              <CustomSelect
-                value={preferences.fontFamily}
-                options={fontOptions}
-                onChange={(val) =>
-                  onUpdatePreferences({
-                    ...preferences,
-                    fontFamily: val as FontFamilyChoice,
-                  })
-                }
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                {t.miniVizLabel}
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                {(
-                  [
-                    { id: "bars", label: t.miniVizBars },
-                    { id: "wave", label: t.miniVizWave },
-                    { id: "off", label: t.miniVizOff },
-                  ] as Array<{ id: MiniVisualizerMode; label: string }>
-                ).map((mv) => (
-                  <button
-                    key={mv.id}
-                    type="button"
-                    onClick={() =>
-                      onUpdatePreferences({ ...preferences, miniVisualizer: mv.id })
-                    }
-                    className={`py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
-                      preferences.miniVisualizer === mv.id
-                        ? "bg-white text-[#050507]"
-                        : "bg-black/40 text-slate-200 hover:bg-white/[0.09]"
-                    }`}
-                  >
-                    {mv.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="pt-3 border-t border-white/[0.06] space-y-3.5">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-slate-200">{t.coverAdaptiveLabel}</span>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={preferences.coverAdaptiveTheme}
-                  onClick={() =>
-                    onUpdatePreferences({
-                      ...preferences,
-                      coverAdaptiveTheme: !preferences.coverAdaptiveTheme,
-                    })
-                  }
-                  className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 flex items-center cursor-pointer ${
-                    preferences.coverAdaptiveTheme ? "bg-cyanpulse" : "bg-white/[0.15]"
-                  }`}
-                >
-                  <span
-                    className={`w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
-                      preferences.coverAdaptiveTheme ? "translate-x-4" : "translate-x-0"
-                    }`}
-                  />
-                </button>
-              </div>
-
+        <div className="space-y-2.5 awase-view-enter">
+          <div className="awase-card rounded-2xl overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setOpenAppearSec((s) => (s === "general" ? null : "general"))}
+              className="w-full px-5 py-3.5 flex items-center justify-between text-left hover:bg-white/[0.03] transition-colors cursor-pointer"
+            >
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                  {t.motionStyleLabel}
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(
-                    [
-                      { id: "fluid", label: t.motionFluid },
-                      { id: "snappy", label: t.motionSnappy },
-                      { id: "silk", label: t.motionSilk },
-                    ] as Array<{ id: MotionStyle; label: string }>
-                  ).map((ms) => (
-                    <button
-                      key={ms.id}
-                      type="button"
-                      onClick={() =>
-                        onUpdatePreferences({ ...preferences, motionStyle: ms.id })
-                      }
-                      className={`py-2 rounded-xl text-xs font-medium transition-all duration-200 cursor-pointer ${
-                        preferences.motionStyle === ms.id
-                          ? "bg-white text-[#050507]"
-                          : "bg-black/40 text-slate-200 hover:bg-white/[0.09]"
-                      }`}
-                    >
-                      {ms.label}
-                    </button>
-                  ))}
+                <div className="font-display font-semibold text-sm text-white">
+                  {preferences.language === "ru" ? "Язык и типографика" : "Language & Typography"}
+                </div>
+                <div className="text-[11px] text-slate-400">
+                  {preferences.language === "ru"
+                    ? "Язык интерфейса, размер и семейство шрифта"
+                    : "Interface language, font size and font family"}
                 </div>
               </div>
-
-              <div className="text-xs font-medium text-slate-300">{t.themeHeader}</div>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  {[
-                    { accent: "#E2E8F0", bg: "#050507", name: "Platinum" },
-                    { accent: "#A78BFA", bg: "#06050B", name: "Violet" },
-                    { accent: "#F5D0A9", bg: "#080605", name: "Champagne" },
-                    { accent: "#34D399", bg: "#040806", name: "Emerald" },
-                    { accent: "#FB7185", bg: "#090507", name: "Rose" },
-                  ].map((preset) => {
-                    const active =
-                      !preferences.coverAdaptiveTheme &&
-                      preferences.accentColor.toLowerCase() === preset.accent.toLowerCase();
-                    return (
+              <span className={`text-slate-400 text-xs transition-transform duration-200 ${openAppearSec === "general" ? "rotate-180" : ""}`}>
+                ▾
+              </span>
+            </button>
+            {openAppearSec === "general" && (
+              <div className="px-5 pb-4 pt-2 border-t border-white/[0.06] space-y-3.5">
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                    {t.languageLabel}
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(
+                      [
+                        { id: "ru", label: "Русский" },
+                        { id: "en", label: "English" },
+                      ] as Array<{ id: AppLanguage; label: string }>
+                    ).map((lang) => (
                       <button
-                        key={preset.name}
+                        key={lang.id}
                         type="button"
-                        title={preset.name}
                         onClick={() =>
+                          onUpdatePreferences({ ...preferences, language: lang.id })
+                        }
+                        className={`py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
+                          preferences.language === lang.id
+                            ? "bg-white text-[#090B10]"
+                            : "bg-black/30 text-slate-200 hover:bg-white/[0.09]"
+                        }`}
+                      >
+                        {lang.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                    {t.fontSizeLabel}
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(
+                      [
+                        { id: "sm", label: t.fontSizeSmall },
+                        { id: "md", label: t.fontSizeMedium },
+                        { id: "lg", label: t.fontSizeLarge },
+                      ] as Array<{ id: FontScale; label: string }>
+                    ).map((sz) => (
+                      <button
+                        key={sz.id}
+                        type="button"
+                        onClick={() =>
+                          onUpdatePreferences({ ...preferences, fontScale: sz.id })
+                        }
+                        className={`py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
+                          preferences.fontScale === sz.id
+                            ? "bg-white text-[#090B10]"
+                            : "bg-black/30 text-slate-200 hover:bg-white/[0.09]"
+                        }`}
+                      >
+                        {sz.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                    {t.fontFamilyLabel}
+                  </label>
+                  <CustomSelect
+                    value={preferences.fontFamily}
+                    options={fontOptions}
+                    onChange={(val) =>
+                      onUpdatePreferences({
+                        ...preferences,
+                        fontFamily: val as FontFamilyChoice,
+                      })
+                    }
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="awase-card rounded-2xl overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setOpenAppearSec((s) => (s === "theme" ? null : "theme"))}
+              className="w-full px-5 py-3.5 flex items-center justify-between text-left hover:bg-white/[0.03] transition-colors cursor-pointer"
+            >
+              <div>
+                <div className="font-display font-semibold text-sm text-white">
+                  {preferences.language === "ru" ? "Цвета, тема и градиент" : "Colors, Theme & Gradient"}
+                </div>
+                <div className="text-[11px] text-slate-400">
+                  {preferences.language === "ru"
+                    ? "Адаптация под обложку, градиентный фон и палитры"
+                    : "Cover-adaptive accent, ambient gradient and color presets"}
+                </div>
+              </div>
+              <span className={`text-slate-400 text-xs transition-transform duration-200 ${openAppearSec === "theme" ? "rotate-180" : ""}`}>
+                ▾
+              </span>
+            </button>
+            {openAppearSec === "theme" && (
+              <div className="px-5 pb-4 pt-2 border-t border-white/[0.06] space-y-3.5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium text-slate-200">
+                      {preferences.language === "ru"
+                        ? "Градиентный фон (как в текстах)"
+                        : "Ambient Gradient Theme"}
+                    </div>
+                    <div className="text-[11px] text-slate-400">
+                      {preferences.language === "ru"
+                        ? "Мягкий градиент от обложки по всему приложению"
+                        : "Soft cover-reactive gradient background across the app"}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={preferences.ambientGradient === true}
+                    onClick={() =>
+                      onUpdatePreferences({
+                        ...preferences,
+                        ambientGradient: preferences.ambientGradient !== true,
+                      })
+                    }
+                    className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 flex items-center shrink-0 cursor-pointer ${
+                      preferences.ambientGradient === true ? "bg-cyanpulse" : "bg-white/[0.15]"
+                    }`}
+                  >
+                    <span
+                      className={`w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
+                        preferences.ambientGradient === true ? "translate-x-4" : "translate-x-0"
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-slate-200">{t.coverAdaptiveLabel}</span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={preferences.coverAdaptiveTheme}
+                    onClick={() =>
+                      onUpdatePreferences({
+                        ...preferences,
+                        coverAdaptiveTheme: !preferences.coverAdaptiveTheme,
+                      })
+                    }
+                    className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 flex items-center cursor-pointer ${
+                      preferences.coverAdaptiveTheme ? "bg-cyanpulse" : "bg-white/[0.15]"
+                    }`}
+                  >
+                    <span
+                      className={`w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
+                        preferences.coverAdaptiveTheme ? "translate-x-4" : "translate-x-0"
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                <div className="text-xs font-medium text-slate-300">{t.themeHeader}</div>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    {[
+                      { accent: "#E2E8F0", bg: "#050507", name: "Platinum" },
+                      { accent: "#A78BFA", bg: "#06050B", name: "Violet" },
+                      { accent: "#F5D0A9", bg: "#080605", name: "Champagne" },
+                      { accent: "#34D399", bg: "#040806", name: "Emerald" },
+                      { accent: "#FB7185", bg: "#090507", name: "Rose" },
+                    ].map((preset) => {
+                      const active =
+                        !preferences.coverAdaptiveTheme &&
+                        preferences.accentColor.toLowerCase() === preset.accent.toLowerCase();
+                      return (
+                        <button
+                          key={preset.name}
+                          type="button"
+                          title={preset.name}
+                          onClick={() =>
+                            onUpdatePreferences({
+                              ...preferences,
+                              coverAdaptiveTheme: false,
+                              accentColor: preset.accent,
+                              bgColor: preset.bg,
+                            })
+                          }
+                          className={`w-7 h-7 rounded-full border transition-transform active:scale-90 cursor-pointer ${
+                            active ? "border-white scale-110" : "border-white/20 hover:scale-105"
+                          }`}
+                          style={{ backgroundColor: preset.accent }}
+                        />
+                      );
+                    })}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <label className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 border border-white/[0.1] hover:border-white/[0.2] text-[11px] text-slate-200 transition-colors cursor-pointer">
+                      <span
+                        className="w-3.5 h-3.5 rounded-full border border-white/30 shrink-0"
+                        style={{ backgroundColor: preferences.accentColor }}
+                      />
+                      <span>{t.accentColorLabel}</span>
+                      <input
+                        type="color"
+                        value={preferences.accentColor}
+                        onChange={(e) =>
                           onUpdatePreferences({
                             ...preferences,
                             coverAdaptiveTheme: false,
-                            accentColor: preset.accent,
-                            bgColor: preset.bg,
+                            accentColor: e.target.value,
                           })
                         }
-                        className={`w-7 h-7 rounded-full border transition-transform active:scale-90 cursor-pointer ${
-                          active ? "border-white scale-110" : "border-white/20 hover:scale-105"
-                        }`}
-                        style={{ backgroundColor: preset.accent }}
+                        className="sr-only"
                       />
-                    );
-                  })}
-                </div>
+                    </label>
 
-                <div className="flex items-center gap-2">
-                  <label className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 border border-white/[0.1] hover:border-white/[0.2] text-[11px] text-slate-200 transition-colors cursor-pointer">
-                    <span
-                      className="w-3.5 h-3.5 rounded-full border border-white/30 shrink-0"
-                      style={{ backgroundColor: preferences.accentColor }}
-                    />
-                    <span>{t.accentColorLabel}</span>
-                    <input
-                      type="color"
-                      value={preferences.accentColor}
-                      onChange={(e) =>
-                        onUpdatePreferences({
-                          ...preferences,
-                          coverAdaptiveTheme: false,
-                          accentColor: e.target.value,
-                        })
-                      }
-                      className="sr-only"
-                    />
-                  </label>
-
-                  <label className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 border border-white/[0.1] hover:border-white/[0.2] text-[11px] text-slate-200 transition-colors cursor-pointer">
-                    <span
-                      className="w-3.5 h-3.5 rounded-full border border-white/30 shrink-0"
-                      style={{ backgroundColor: preferences.bgColor }}
-                    />
-                    <span>{t.bgColorLabel}</span>
-                    <input
-                      type="color"
-                      value={preferences.bgColor}
-                      onChange={(e) =>
-                        onUpdatePreferences({
-                          ...preferences,
-                          coverAdaptiveTheme: false,
-                          bgColor: e.target.value,
-                        })
-                      }
-                      className="sr-only"
-                    />
-                  </label>
+                    <label className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 border border-white/[0.1] hover:border-white/[0.2] text-[11px] text-slate-200 transition-colors cursor-pointer">
+                      <span
+                        className="w-3.5 h-3.5 rounded-full border border-white/30 shrink-0"
+                        style={{ backgroundColor: preferences.bgColor }}
+                      />
+                      <span>{t.bgColorLabel}</span>
+                      <input
+                        type="color"
+                        value={preferences.bgColor}
+                        onChange={(e) =>
+                          onUpdatePreferences({
+                            ...preferences,
+                            coverAdaptiveTheme: false,
+                            bgColor: e.target.value,
+                          })
+                        }
+                        className="sr-only"
+                      />
+                    </label>
+                  </div>
                 </div>
               </div>
+            )}
+          </div>
 
-              <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between gap-3">
+          <div className="awase-card rounded-2xl overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setOpenAppearSec((s) => (s === "motion" ? null : "motion"))}
+              className="w-full px-5 py-3.5 flex items-center justify-between text-left hover:bg-white/[0.03] transition-colors cursor-pointer"
+            >
+              <div>
+                <div className="font-display font-semibold text-sm text-white">
+                  {preferences.language === "ru"
+                    ? "Анимации, визуализатор и Discord"
+                    : "Animations, Visualizer & Discord"}
+                </div>
+                <div className="text-[11px] text-slate-400">
+                  {preferences.language === "ru"
+                    ? "Мини-визуализатор, игровой режим и Discord Rich Presence"
+                    : "Mini-visualizer, Gaming Mode and Discord Rich Presence"}
+                </div>
+              </div>
+              <span className={`text-slate-400 text-xs transition-transform duration-200 ${openAppearSec === "motion" ? "rotate-180" : ""}`}>
+                ▾
+              </span>
+            </button>
+            {openAppearSec === "motion" && (
+              <div className="px-5 pb-4 pt-2 border-t border-white/[0.06] space-y-3.5">
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                    {t.miniVizLabel}
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(
+                      [
+                        { id: "bars", label: t.miniVizBars },
+                        { id: "wave", label: t.miniVizWave },
+                        { id: "off", label: t.miniVizOff },
+                      ] as Array<{ id: MiniVisualizerMode; label: string }>
+                    ).map((mv) => (
+                      <button
+                        key={mv.id}
+                        type="button"
+                        onClick={() =>
+                          onUpdatePreferences({ ...preferences, miniVisualizer: mv.id })
+                        }
+                        className={`py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
+                          preferences.miniVisualizer === mv.id
+                            ? "bg-white text-[#050507]"
+                            : "bg-black/40 text-slate-200 hover:bg-white/[0.09]"
+                        }`}
+                      >
+                        {mv.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                    {t.motionStyleLabel}
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(
+                      [
+                        { id: "fluid", label: t.motionFluid },
+                        { id: "snappy", label: t.motionSnappy },
+                        { id: "silk", label: t.motionSilk },
+                      ] as Array<{ id: MotionStyle; label: string }>
+                    ).map((ms) => (
+                      <button
+                        key={ms.id}
+                        type="button"
+                        onClick={() =>
+                          onUpdatePreferences({ ...preferences, motionStyle: ms.id })
+                        }
+                        className={`py-2 rounded-xl text-xs font-medium transition-all duration-200 cursor-pointer ${
+                          preferences.motionStyle === ms.id
+                            ? "bg-white text-[#050507]"
+                            : "bg-black/40 text-slate-200 hover:bg-white/[0.09]"
+                        }`}
+                      >
+                        {ms.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div
                     className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border ${
@@ -1002,6 +1106,11 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
                       {(
                         [
                           {
+                            key: "rpcHideOnPause",
+                            label: preferences.language === "ru" ? "Убирать статус на паузе" : "Hide RPC when Paused",
+                            invertDefault: true,
+                          },
+                          {
                             key: "rpcShowIdle",
                             label: preferences.language === "ru" ? "Умный статус Idle" : "Smart Idle Status",
                           },
@@ -1021,9 +1130,21 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
                             key: "rpcShowSource",
                             label: preferences.language === "ru" ? "Источник в бейдже" : "Source Badge Text",
                           },
-                        ] as const
+                        ] as ReadonlyArray<{
+                          key:
+                            | "rpcHideOnPause"
+                            | "rpcShowIdle"
+                            | "rpcShowPaused"
+                            | "rpcShowButtons"
+                            | "rpcShowTimestamps"
+                            | "rpcShowSource";
+                          label: string;
+                          invertDefault?: boolean;
+                        }>
                       ).map((item) => {
-                        const checked = preferences[item.key] !== false;
+                        const checked = item.invertDefault
+                          ? preferences[item.key] === true
+                          : preferences[item.key] !== false;
                         return (
                           <button
                             key={item.key}
@@ -1075,7 +1196,8 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
                   </div>
                 )}
               </div>
-            </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1330,6 +1452,50 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
                       ? "Очистить кэш"
                       : "Clear Cache"}
                 </button>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="text-[11px] text-slate-300">
+                  {preferences.language === "ru"
+                    ? "Авто-удаление кэша треков не из избранного"
+                    : "Auto-clean cached non-favorite tracks"}
+                </div>
+                <div className="grid grid-cols-5 gap-1.5">
+                  {[
+                    { days: 0, label: preferences.language === "ru" ? "Выкл" : "Off" },
+                    { days: 3, label: preferences.language === "ru" ? "3 дн." : "3d" },
+                    { days: 7, label: preferences.language === "ru" ? "7 дн." : "7d" },
+                    { days: 14, label: preferences.language === "ru" ? "14 дн." : "14d" },
+                    { days: 30, label: preferences.language === "ru" ? "30 дн." : "30d" },
+                  ].map((opt) => {
+                    const currentDays = preferences.cacheAutoCleanDays ?? 7;
+                    return (
+                      <button
+                        key={opt.days}
+                        type="button"
+                        onClick={() => {
+                          onUpdatePreferences({
+                            ...preferences,
+                            cacheAutoCleanDays: opt.days,
+                          });
+                          if (opt.days > 0) {
+                            api
+                              .cleanupNonFavoriteCache(opt.days)
+                              .then(setCacheStats)
+                              .catch(() => {});
+                          }
+                        }}
+                        className={`py-1.5 rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
+                          currentDays === opt.days
+                            ? "bg-white text-[#050507]"
+                            : "bg-white/[0.06] text-slate-300 hover:bg-white/[0.12] hover:text-white"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               <div className="pt-2 border-t border-white/[0.08] space-y-2">

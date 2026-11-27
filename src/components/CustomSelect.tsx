@@ -42,7 +42,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl bg-[#0D111A] hover:bg-[#131926] border border-white/[0.1] text-xs text-white transition-colors cursor-pointer"
+        className="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl bg-black/40 hover:bg-white/[0.08] border border-white/[0.1] text-xs text-white transition-colors cursor-pointer"
       >
         <span className="flex items-center gap-2 truncate">
           {icon && <span className="text-slate-400 shrink-0">{icon}</span>}
@@ -58,7 +58,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
       </button>
 
       <div
-        className={`absolute left-0 right-0 mt-1.5 z-50 rounded-xl bg-[#121723] border border-white/[0.12] shadow-2xl overflow-hidden transition-all duration-200 origin-top ${
+        className={`absolute left-0 right-0 mt-1.5 z-50 rounded-xl awase-glass border border-white/[0.12] shadow-2xl overflow-hidden transition-all duration-200 origin-top ${
           open
             ? "opacity-100 scale-y-100 pointer-events-auto"
             : "opacity-0 scale-y-95 pointer-events-none"
@@ -77,7 +77,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
                 }}
                 className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-colors cursor-pointer ${
                   active
-                    ? "bg-cyanpulse/20 text-cyanpulse font-medium"
+                    ? "bg-white/[0.14] text-white font-medium"
                     : "text-slate-200 hover:bg-white/[0.07]"
                 }`}
               >

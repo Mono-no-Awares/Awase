@@ -527,6 +527,33 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
                 <IconHeart size={18} filled={currentTrack.liked} />
               </button>
             )}
+            {activeWave && currentTrack && onDislikeWave && (
+              <button
+                type="button"
+                onClick={onDislikeWave}
+                title={language === "ru" ? "Не нравится (пропустить)" : "Dislike (skip)"}
+                aria-label="Dislike track"
+                className="p-2 rounded-full text-slate-300 hover:text-rose-300 hover:bg-white/[0.08] transition-colors cursor-pointer"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17 14V2" />
+                  <path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z" />
+                </svg>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onToggleEq}
+              title={t.eqTitle}
+              aria-label={t.eqTitle}
+              className={`p-2 rounded-full transition-colors cursor-pointer ${
+                eqOpen
+                  ? "text-cyanpulse bg-white/[0.1]"
+                  : "text-slate-300 hover:text-white hover:bg-white/[0.08]"
+              }`}
+            >
+              <IconEqualizer size={18} />
+            </button>
             {currentTrack && onAddToPlaylist && (
               <div ref={playlistMenuRef} className="relative">
                 <button
@@ -581,33 +608,6 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
                 )}
               </div>
             )}
-            {activeWave && currentTrack && onDislikeWave && (
-              <button
-                type="button"
-                onClick={onDislikeWave}
-                title={language === "ru" ? "Не нравится (пропустить)" : "Dislike (skip)"}
-                aria-label="Dislike track"
-                className="p-2 rounded-full text-slate-300 hover:text-rose-300 hover:bg-white/[0.08] transition-colors cursor-pointer"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M17 14V2" />
-                  <path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z" />
-                </svg>
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={onToggleEq}
-              title={t.eqTitle}
-              aria-label={t.eqTitle}
-              className={`p-2 rounded-full transition-colors cursor-pointer ${
-                eqOpen
-                  ? "text-cyanpulse bg-white/[0.1]"
-                  : "text-slate-300 hover:text-white hover:bg-white/[0.08]"
-              }`}
-            >
-              <IconEqualizer size={18} />
-            </button>
             {!activeWave && (
               <button
                 type="button"

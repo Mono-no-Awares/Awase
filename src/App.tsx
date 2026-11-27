@@ -22,6 +22,7 @@ import { extractCoverPalette, type CoverPalette } from "./lib/colorExtract";
 import { SOURCE_META } from "./lib/sources";
 import { api } from "./lib/ipc";
 import { AwaseLogo } from "./components/AwaseIcons";
+import { ChangelogModal } from "./components/ChangelogModal";
 import { TitleBar } from "./components/TitleBar";
 import { Sidebar } from "./components/Sidebar";
 import { StageView } from "./components/StageView";
@@ -66,7 +67,8 @@ const DEFAULT_PREFS: AppPreferences = {
   shareCardEnabled: true,
   wrappedEnabled: true,
   ambientGradient: false,
-  cacheAutoCleanDays: 7,
+  cacheAutoCleanDays: 0,
+  lastSeenVersion: "",
   gamingMode: false,
   discordRpc: true,
   discordAppId: "",
@@ -116,6 +118,7 @@ function loadPrefs(): AppPreferences {
 
 export const App: React.FC = () => {
   const [booting, setBooting] = useState(true);
+  const [changelogOpen, setChangelogOpen] = useState(false);
   const [preferences, setPreferences] = useState<AppPreferences>(loadPrefs);
   const [activeView, setActiveView] = useState<ActiveView>("stage");
   const [sourceFilter, setSourceFilter] = useState<SourceKind | "all" | "liked">("all");
@@ -259,7 +262,8 @@ export const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    let autoCleanDays = 7;
+    let autoCleanDays = 0;
+    let seenVer = "";
     api
       .getUiPrefs()
       .then((raw) => {
@@ -268,13 +272,19 @@ export const App: React.FC = () => {
           if (typeof parsed.cacheAutoCleanDays === "number") {
             autoCleanDays = parsed.cacheAutoCleanDays;
           }
+          if (typeof parsed.lastSeenVersion === "string") {
+            seenVer = parsed.lastSeenVersion;
+          }
           setPreferences((prev) => ({ ...prev, ...parsed }));
         }
       })
       .catch(() => {})
       .finally(() => {
-        if (autoCleanDays > 0) {
+        if (autoCleanDays >= 0) {
           api.cleanupNonFavoriteCache(autoCleanDays).catch(() => {});
+        }
+        if (seenVer !== "0.2.4") {
+          window.setTimeout(() => setChangelogOpen(true), 1050);
         }
       });
 
@@ -940,14 +950,15 @@ export const App: React.FC = () => {
         />
       )}
       <div
-        className={`fixed inset-0 z-[60] flex flex-col items-center justify-center gap-5 bg-[#050507] transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        className={`fixed inset-0 z-[80] flex flex-col items-center justify-center gap-5 bg-[#050507] transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
           booting
             ? "opacity-100 scale-100 pointer-events-auto"
-            : "opacity-0 scale-[1.035] pointer-events-none"
+            : "opacity-0 scale-[1.03] pointer-events-none"
         }`}
         style={{
-          background:
-            "radial-gradient(circle at 50% 45%, rgba(167, 139, 250, 0.14), #050507 62%)",
+          backgroundColor: "#050507",
+          backgroundImage:
+            "radial-gradient(circle at 50% 45%, rgba(167, 139, 250, 0.16), #050507 62%)",
         }}
       >
         <div className="relative flex items-center justify-center">
@@ -1621,6 +1632,15 @@ export const App: React.FC = () => {
         onToggleResonance={() => {
           setLyricsOpen(false);
           setActiveView((v) => (v === "resonance" ? "stage" : "resonance"));
+        }}
+      />
+      <ChangelogModal
+        open={changelogOpen}
+        version="0.2.4"
+        language={preferences.language}
+        onClose={() => {
+          setChangelogOpen(false);
+          setPreferences((prev) => ({ ...prev, lastSeenVersion: "0.2.4" }));
         }}
       />
     </div>

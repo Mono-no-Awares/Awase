@@ -7,7 +7,6 @@ mod lyrics;
 mod models;
 mod providers;
 mod spotify_player;
-mod zapret;
 
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
@@ -151,7 +150,6 @@ pub fn run() {
                         }
                     }
                     "quit" => {
-                        zapret::stop_zapret();
                         app_handle.exit(0);
                     }
                     _ => {}
@@ -238,9 +236,6 @@ pub fn run() {
             commands::export_user_backup,
             commands::import_user_backup,
             commands::get_wave_tracks,
-            commands::get_zapret_status,
-            commands::install_zapret,
-            commands::set_zapret_enabled,
             commands::get_ru_bypass_status,
             commands::set_ru_bypass_mode,
             commands::prefetch_track,

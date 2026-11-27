@@ -108,6 +108,7 @@ export interface AppPreferences {
   wrappedEnabled?: boolean;
   ambientGradient?: boolean;
   cacheAutoCleanDays?: number;
+  lastSeenVersion?: string;
   gamingMode: boolean;
   discordRpc: boolean;
   discordAppId: string;

@@ -15,7 +15,6 @@ import type {
   SourceKind,
   SourceStatus,
   UpdateCheckResult,
-  ZapretStatus,
 } from "../types";
 import { api } from "../lib/ipc";
 import { TRANSLATIONS } from "../lib/i18n";
@@ -104,23 +103,11 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
   const [spotifyPlaylistInput, setSpotifyPlaylistInput] = useState("");
   const [scToken, setScToken] = useState("");
   const [scHandle, setScHandle] = useState("");
-  const [zapretStatus, setZapretStatus] = useState<ZapretStatus | null>(null);
-  const [zapretBusy, setZapretBusy] = useState(false);
-  const [zapretErr, setZapretErr] = useState<string | null>(null);
   const [ruBypass, setRuBypass] = useState<[number, boolean]>([1, false]);
 
   useEffect(() => {
-    api.getZapretStatus().then(setZapretStatus).catch(() => {});
     api.getRuBypassStatus().then(setRuBypass).catch(() => {});
   }, []);
-
-  useEffect(() => {
-    if (!zapretBusy) return;
-    const id = window.setInterval(() => {
-      api.getZapretStatus().then(setZapretStatus).catch(() => {});
-    }, 550);
-    return () => window.clearInterval(id);
-  }, [zapretBusy]);
 
   const [cacheStats, setCacheStats] = useState<CacheStats | null>(null);
   const [cacheClearing, setCacheClearing] = useState(false);
@@ -159,50 +146,6 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
       setUpdateErr(String(err));
     } finally {
       setUpdateBusy(false);
-    }
-  };
-
-  const handleInstallZapret = async () => {
-    setZapretBusy(true);
-    setZapretErr(null);
-    try {
-      const st = await api.installZapret();
-      setZapretStatus(st);
-    } catch (err) {
-      setZapretErr(String(err));
-    } finally {
-      setZapretBusy(false);
-    }
-  };
-
-  const handleToggleZapret = async () => {
-    setZapretBusy(true);
-    setZapretErr(null);
-    try {
-      const st = zapretStatus ?? (await api.getZapretStatus());
-      const next = await api.setZapretEnabled(!st.running);
-      setZapretStatus(next);
-    } catch (err) {
-      setZapretErr(String(err));
-    } finally {
-      setZapretBusy(false);
-    }
-  };
-
-  const handleAutoTuneZapret = async () => {
-    setZapretBusy(true);
-    setZapretErr(null);
-    try {
-      let st = zapretStatus ?? (await api.getZapretStatus());
-      if (!st.installed) {
-        st = await api.installZapret();
-      }
-      const next = await api.setZapretEnabled(true);
-      setZapretStatus(next);
-    } catch (err) {
-      setZapretErr(String(err));
-    } finally {
-      setZapretBusy(false);
     }
   };
 
@@ -995,8 +938,78 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
                 </button>
               </div>
 
-              <div className="pt-2 border-t border-white/[0.08] space-y-3">
-                <div className="flex items-center justify-between gap-3">
+                <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium text-white">
+                      {preferences.language === "ru"
+                        ? "Карточка «Сейчас играет»"
+                        : "Share Now Playing Card"}
+                    </div>
+                    <div className="text-[11px] text-slate-400">
+                      {preferences.language === "ru"
+                        ? "Кнопка копирования PNG-карточки в буфер обмена"
+                        : "Button to copy a styled PNG card to clipboard"}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={preferences.shareCardEnabled !== false}
+                    onClick={() =>
+                      onUpdatePreferences({
+                        ...preferences,
+                        shareCardEnabled: preferences.shareCardEnabled === false,
+                      })
+                    }
+                    className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 flex items-center shrink-0 cursor-pointer ${
+                      preferences.shareCardEnabled !== false ? "bg-cyanpulse" : "bg-white/[0.18]"
+                    }`}
+                  >
+                    <span
+                      className={`w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
+                        preferences.shareCardEnabled !== false ? "translate-x-4" : "translate-x-0"
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium text-white">
+                      {preferences.language === "ru"
+                        ? "Статистика «Awase Wrapped»"
+                        : "Awase Wrapped Stats"}
+                    </div>
+                    <div className="text-[11px] text-slate-400">
+                      {preferences.language === "ru"
+                        ? "Локальная история часов и топ-5 треков/артистов"
+                        : "Local listening hours and Top 5 tracks & artists"}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={preferences.wrappedEnabled !== false}
+                    onClick={() =>
+                      onUpdatePreferences({
+                        ...preferences,
+                        wrappedEnabled: preferences.wrappedEnabled === false,
+                      })
+                    }
+                    className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 flex items-center shrink-0 cursor-pointer ${
+                      preferences.wrappedEnabled !== false ? "bg-cyanpulse" : "bg-white/[0.18]"
+                    }`}
+                  >
+                    <span
+                      className={`w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
+                        preferences.wrappedEnabled !== false ? "translate-x-4" : "translate-x-0"
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                <div className="pt-2 border-t border-white/[0.08] space-y-3">
+                  <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <div className="text-xs font-medium text-white">{t.discordRpcLabel}</div>
                     <div className="text-[11px] text-slate-300 leading-snug">{t.discordRpcDesc}</div>
@@ -1256,88 +1269,6 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
                 </div>
               </div>
 
-              <div className="pt-2 border-t border-white/[0.08] space-y-2.5">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="text-xs font-medium text-white">
-                      {preferences.language === "ru"
-                        ? "Системный Zapret (WinDivert, доп.)"
-                        : "System Zapret (WinDivert, optional)"}
-                    </div>
-                    <div className="text-[11px] text-slate-400 leading-snug">
-                      {zapretStatus?.running && zapretStatus.strategy
-                        ? `${preferences.language === "ru" ? "Активна стратегия" : "Active strategy"}: ${zapretStatus.strategy}`
-                        : zapretStatus?.externalRunning
-                          ? preferences.language === "ru"
-                            ? "Обнаружен сторонний Zapret (без домена SoundCloud). Нажмите Автоподбор, чтобы переключить на список SoundCloud."
-                            : "External Zapret detected (without SoundCloud list). Click Auto-tune to switch."
-                          : preferences.language === "ru"
-                            ? "Включайте, если в РФ не грузятся треки SoundCloud. Один запрос UAC — и Awase сам подберёт рабочую стратегию."
-                            : "Enable if SoundCloud streams fail in your region. Single UAC prompt to auto-tune a working strategy."}
-                    </div>
-                  </div>
-                  {zapretStatus?.installed ? (
-                    <button
-                      type="button"
-                      role="switch"
-                      disabled={zapretBusy}
-                      aria-checked={zapretStatus.running}
-                      onClick={handleToggleZapret}
-                      className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 flex items-center shrink-0 cursor-pointer disabled:opacity-50 ${
-                        zapretStatus.running ? "bg-cyanpulse" : "bg-white/[0.18]"
-                      }`}
-                    >
-                      <span
-                        className={`w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
-                          zapretStatus.running ? "translate-x-4" : "translate-x-0"
-                        }`}
-                      />
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      disabled={zapretBusy}
-                      onClick={handleInstallZapret}
-                      className="px-3 py-1.5 rounded-xl bg-white/[0.08] hover:bg-white/[0.14] border border-white/[0.12] text-[11px] font-medium text-white shrink-0 transition-all cursor-pointer disabled:opacity-50"
-                    >
-                      {preferences.language === "ru" ? "Скачать (~5 МБ)" : "Download (~5 MB)"}
-                    </button>
-                  )}
-                </div>
-
-                {zapretStatus?.installed && (
-                  <div className="flex items-center justify-between gap-2 text-[11px]">
-                    <span className="text-slate-400">
-                      {zapretStatus.running
-                        ? preferences.language === "ru"
-                          ? "Статус: работает (list-soundcloud.txt)"
-                          : "Status: running (list-soundcloud.txt)"
-                        : preferences.language === "ru"
-                          ? "Статус: установлен, выключен"
-                          : "Status: installed, stopped"}
-                    </span>
-                    <button
-                      type="button"
-                      disabled={zapretBusy}
-                      onClick={handleAutoTuneZapret}
-                      className="px-2.5 py-1 rounded-lg bg-cyanpulse/15 hover:bg-cyanpulse/25 text-cyanpulse font-medium transition-colors cursor-pointer disabled:opacity-50"
-                    >
-                      {preferences.language === "ru" ? "Автоподбор" : "Auto-tune"}
-                    </button>
-                  </div>
-                )}
-
-                {zapretBusy && (
-                  <div className="text-[11px] text-cyanpulse">
-                    {zapretStatus?.progress ||
-                      (preferences.language === "ru"
-                        ? "Подбор рабочей стратегии / загрузка Zapret..."
-                        : "Auto-tuning strategy / downloading Zapret...")}
-                  </div>
-                )}
-                {zapretErr && <div className="text-[11px] text-rose-300">{zapretErr}</div>}
-              </div>
-
               <div className="pt-2 border-t border-white/[0.08] grid grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -1352,76 +1283,6 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
                   className="py-2 px-3 rounded-xl bg-white/[0.08] hover:bg-white/[0.14] border border-white/[0.12] text-xs font-medium text-white transition-all active:scale-95 cursor-pointer"
                 >
                   {t.importBackup}
-                </button>
-              </div>
-
-              <div className="pt-2 border-t border-white/[0.08] flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-xs font-medium text-white">
-                    {preferences.language === "ru"
-                      ? "Карточка «Сейчас играет»"
-                      : "Share Now Playing Card"}
-                  </div>
-                  <div className="text-[11px] text-slate-400">
-                    {preferences.language === "ru"
-                      ? "Кнопка копирования PNG-карточки в буфер обмена"
-                      : "Button to copy a styled PNG card to clipboard"}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={preferences.shareCardEnabled !== false}
-                  onClick={() =>
-                    onUpdatePreferences({
-                      ...preferences,
-                      shareCardEnabled: preferences.shareCardEnabled === false,
-                    })
-                  }
-                  className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 flex items-center shrink-0 cursor-pointer ${
-                    preferences.shareCardEnabled !== false ? "bg-cyanpulse" : "bg-white/[0.18]"
-                  }`}
-                >
-                  <span
-                    className={`w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
-                      preferences.shareCardEnabled !== false ? "translate-x-4" : "translate-x-0"
-                    }`}
-                  />
-                </button>
-              </div>
-
-              <div className="pt-2 border-t border-white/[0.08] flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-xs font-medium text-white">
-                    {preferences.language === "ru"
-                      ? "Статистика «Awase Wrapped»"
-                      : "Awase Wrapped Stats"}
-                  </div>
-                  <div className="text-[11px] text-slate-400">
-                    {preferences.language === "ru"
-                      ? "Локальная история часов и топ-5 треков/артистов"
-                      : "Local listening hours and Top 5 tracks & artists"}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={preferences.wrappedEnabled !== false}
-                  onClick={() =>
-                    onUpdatePreferences({
-                      ...preferences,
-                      wrappedEnabled: preferences.wrappedEnabled === false,
-                    })
-                  }
-                  className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 flex items-center shrink-0 cursor-pointer ${
-                    preferences.wrappedEnabled !== false ? "bg-cyanpulse" : "bg-white/[0.18]"
-                  }`}
-                >
-                  <span
-                    className={`w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
-                      preferences.wrappedEnabled !== false ? "translate-x-4" : "translate-x-0"
-                    }`}
-                  />
                 </button>
               </div>
 
@@ -1462,13 +1323,13 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
                 </div>
                 <div className="grid grid-cols-5 gap-1.5">
                   {[
-                    { days: 0, label: preferences.language === "ru" ? "Выкл" : "Off" },
+                    { days: 0, label: preferences.language === "ru" ? "При старте" : "On Start" },
                     { days: 3, label: preferences.language === "ru" ? "3 дн." : "3d" },
                     { days: 7, label: preferences.language === "ru" ? "7 дн." : "7d" },
                     { days: 14, label: preferences.language === "ru" ? "14 дн." : "14d" },
-                    { days: 30, label: preferences.language === "ru" ? "30 дн." : "30d" },
+                    { days: -1, label: preferences.language === "ru" ? "Выкл" : "Off" },
                   ].map((opt) => {
-                    const currentDays = preferences.cacheAutoCleanDays ?? 7;
+                    const currentDays = preferences.cacheAutoCleanDays ?? 0;
                     return (
                       <button
                         key={opt.days}
@@ -1478,7 +1339,7 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
                             ...preferences,
                             cacheAutoCleanDays: opt.days,
                           });
-                          if (opt.days > 0) {
+                          if (opt.days >= 0) {
                             api
                               .cleanupNonFavoriteCache(opt.days)
                               .then(setCacheStats)

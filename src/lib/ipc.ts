@@ -9,7 +9,6 @@ import type {
   SourceKind,
   SourceStatus,
   Track,
-  ZapretStatus,
 } from "../types";
 
 export const api = {
@@ -116,9 +115,6 @@ export const api = {
   importUserBackup: (filePath: string) => invoke<string | null>("import_user_backup", { filePath }),
   getWaveTracks: (source: "yandex" | "soundcloud" | "mix", reset?: boolean) =>
     invoke<Track[]>("get_wave_tracks", { source, reset }),
-  getZapretStatus: () => invoke<ZapretStatus>("get_zapret_status"),
-  installZapret: () => invoke<ZapretStatus>("install_zapret"),
-  setZapretEnabled: (enabled: boolean) => invoke<ZapretStatus>("set_zapret_enabled", { enabled }),
   getRuBypassStatus: () => invoke<[number, boolean]>("get_ru_bypass_status"),
   setRuBypassMode: (mode: number) => invoke<[number, boolean]>("set_ru_bypass_mode", { mode }),
   prefetchTrack: (track: Track) => invoke<void>("prefetch_track", { track }),

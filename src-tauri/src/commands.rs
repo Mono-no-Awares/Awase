@@ -19,7 +19,6 @@ use crate::models::{
     SourceKind, SourceStatus, Track,
 };
 use crate::providers::{self, soundcloud, spotify, yandex};
-use crate::zapret::{self, ZapretStatus};
 
 pub struct AppState {
     pub db: Arc<Database>,
@@ -1494,17 +1493,6 @@ pub async fn get_wave_tracks(
 }
 
 #[tauri::command]
-pub fn get_zapret_status(state: State<'_, AppState>) -> ZapretStatus {
-    let _ = zapret::ensure_soundcloud_list(&state.data_dir);
-    zapret::get_status(&state.data_dir)
-}
-
-#[tauri::command]
-pub async fn install_zapret(state: State<'_, AppState>) -> Result<ZapretStatus, String> {
-    zapret::install_zapret(&state.http, &state.data_dir).await
-}
-
-#[tauri::command]
 pub async fn prefetch_track(state: State<'_, AppState>, track: Track) -> Result<(), String> {
     match track.source {
         SourceKind::SoundCloud => {
@@ -1615,19 +1603,6 @@ pub fn set_ru_bypass_mode(state: State<'_, AppState>, mode: u8) -> (u8, bool) {
     soundcloud::get_ru_bypass_state()
 }
 
-#[tauri::command]
-pub async fn set_zapret_enabled(
-    state: State<'_, AppState>,
-    enabled: bool,
-) -> Result<ZapretStatus, String> {
-    if enabled {
-        zapret::start_zapret_auto(&state.data_dir).await
-    } else {
-        zapret::stop_zapret();
-        Ok(zapret::get_status(&state.data_dir))
-    }
-}
-
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CacheStats {
@@ -1687,11 +1662,11 @@ pub fn clear_cache(state: State<'_, AppState>) -> CacheStats {
 }
 
 #[tauri::command]
-pub fn cleanup_non_favorite_cache(state: State<'_, AppState>, max_age_days: u64) -> CacheStats {
-    if max_age_days > 0 {
+pub fn cleanup_non_favorite_cache(state: State<'_, AppState>, max_age_days: i64) -> CacheStats {
+    if max_age_days >= 0 {
         let liked = state.db.get_liked_track_ids().unwrap_or_default();
         let playing_id = state.engine.get_telemetry().current_track_id;
-        let max_age = std::time::Duration::from_secs(max_age_days.saturating_mul(86400));
+        let max_age = std::time::Duration::from_secs((max_age_days as u64).saturating_mul(86400));
         let now = std::time::SystemTime::now();
         if let Ok(rd) = std::fs::read_dir(&state.cache_dir) {
             for entry in rd.flatten() {
@@ -1710,7 +1685,9 @@ pub fn cleanup_non_favorite_cache(state: State<'_, AppState>, max_age_days: u64)
                 if playing_id.as_deref() == Some(stem.as_str()) {
                     continue;
                 }
-                if let Ok(meta) = entry.metadata() {
+                if max_age_days == 0 {
+                    let _ = std::fs::remove_file(&p);
+                } else if let Ok(meta) = entry.metadata() {
                     if let Ok(modified) = meta.modified() {
                         if let Ok(elapsed) = now.duration_since(modified) {
                             if elapsed >= max_age {

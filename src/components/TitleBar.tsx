@@ -142,7 +142,6 @@ export const TitleBar: React.FC<TitleBarProps> = ({
                 setSearchOpen(true);
                 window.setTimeout(() => inputRef.current?.focus(), 60);
               }}
-              title={`${t.searchPlaceholder} (Ctrl+K)`}
               aria-label="Search"
               className="w-full h-full flex items-center px-3 gap-2 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
             >
@@ -157,7 +156,6 @@ export const TitleBar: React.FC<TitleBarProps> = ({
         <button
           type="button"
           onClick={onToggleGamingMode}
-          title={t.gamingModeDesc}
           aria-label={t.gamingModeLabel}
           className={`h-7 px-2.5 mr-1 flex items-center gap-1.5 rounded-full border text-[11px] font-medium transition-all duration-200 active:scale-95 cursor-pointer ${
             gamingMode
@@ -171,7 +169,6 @@ export const TitleBar: React.FC<TitleBarProps> = ({
         <button
           type="button"
           onClick={onToggleFullscreen}
-          title={`${t.fullscreen} (F11)`}
           aria-label={t.fullscreen}
           className={`w-9 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer ${
             isFullscreen

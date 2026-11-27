@@ -752,7 +752,6 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
                         <button
                           key={preset.name}
                           type="button"
-                          title={preset.name}
                           onClick={() =>
                             onUpdatePreferences({
                               ...preferences,
@@ -1513,7 +1512,7 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
             <div className="font-display font-semibold text-sm text-white">
               Awase{" "}
               <span className="text-xs font-normal text-slate-300">
-                v{updateInfo?.currentVersion ?? "0.2.4"}
+                v{updateInfo?.currentVersion ?? "0.2.5"}
               </span>
             </div>
             <div className="text-xs text-slate-300 mt-0.5">

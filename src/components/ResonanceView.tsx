@@ -244,7 +244,6 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
             <button
               type="button"
               onClick={onShareCard}
-              title={language === "ru" ? "Скопировать карточку трека" : "Copy share card"}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.08] transition-all duration-200 active:scale-95 cursor-pointer"
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -511,8 +510,8 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
           </span>
         </div>
 
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-1.5 min-w-[110px]">
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
+          <div className="flex items-center gap-1.5 min-w-0">
             {currentTrack && (
               <button
                 type="button"
@@ -531,7 +530,6 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
               <button
                 type="button"
                 onClick={onDislikeWave}
-                title={language === "ru" ? "Не нравится (пропустить)" : "Dislike (skip)"}
                 aria-label="Dislike track"
                 className="p-2 rounded-full text-slate-300 hover:text-rose-300 hover:bg-white/[0.08] transition-colors cursor-pointer"
               >
@@ -544,7 +542,6 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
             <button
               type="button"
               onClick={onToggleEq}
-              title={t.eqTitle}
               aria-label={t.eqTitle}
               className={`p-2 rounded-full transition-colors cursor-pointer ${
                 eqOpen
@@ -561,7 +558,6 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
                   onClick={() =>
                     setOpenMenu((m) => (m === "playlist" ? null : "playlist"))
                   }
-                  title={language === "ru" ? "Добавить в плейлист" : "Add to playlist"}
                   aria-label="Add to playlist"
                   className={`p-2 rounded-full transition-colors cursor-pointer ${
                     openMenu === "playlist"
@@ -612,7 +608,6 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
               <button
                 type="button"
                 onClick={onToggleQueue}
-                title={t.queueTitle}
                 aria-label={t.queueTitle}
                 className={`p-2 rounded-full transition-colors cursor-pointer ${
                   queueOpen

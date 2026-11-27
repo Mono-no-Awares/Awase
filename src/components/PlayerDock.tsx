@@ -312,7 +312,6 @@ export const PlayerDock: React.FC<PlayerDockProps> = ({
         <button
           type="button"
           onClick={onToggleLyrics}
-          title={language === "ru" ? "Текст песни" : "Lyrics"}
           aria-label="Lyrics"
           className={`p-2.5 rounded-full transition-all active:scale-95 cursor-pointer ${
             lyricsOpen
@@ -326,7 +325,6 @@ export const PlayerDock: React.FC<PlayerDockProps> = ({
         <button
           type="button"
           onClick={onToggleResonance}
-          title={t.waveTitle}
           aria-label={t.waveTitle}
           className={`p-2.5 rounded-full transition-all active:scale-95 cursor-pointer ${
             resonanceActive
@@ -340,7 +338,6 @@ export const PlayerDock: React.FC<PlayerDockProps> = ({
         <button
           type="button"
           onClick={onToggleEq}
-          title={t.eqTitle}
           aria-label={t.eqTitle}
           className={`p-2.5 rounded-full transition-all active:scale-95 cursor-pointer ${
             eqOpen
@@ -355,7 +352,6 @@ export const PlayerDock: React.FC<PlayerDockProps> = ({
           <button
             type="button"
             onClick={onToggleQueue}
-            title={t.queueTitle}
             aria-label={t.queueTitle}
             className={`p-2.5 rounded-full transition-all active:scale-95 cursor-pointer ${
               queueOpen

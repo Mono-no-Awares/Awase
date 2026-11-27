@@ -11,39 +11,47 @@ interface ChangelogModalProps {
 
 const ITEMS_RU = [
   {
-    title: "Spotify Premium через Web Playback SDK",
-    desc: "Прямое воспроизведение 1-в-1, вход в 1 клик без Client ID и полная синхронизация плейлистов (>100 треков).",
+    title: "Умная библиотека без лишних вкладок",
+    desc: "Убрана вкладка All — в библиотеке отображаются только подключённые сервисы, а если ничего не добавлено, появляется быстрая карточка для подключения.",
   },
   {
-    title: "Умный Discord Rich Presence",
-    desc: "Настраиваемые стили (Minimal, Detailed, Audiophile, Live Lyrics), статус Idle по активному экрану, скрытие на паузе и кнопки.",
+    title: "Идеальная центровка и управление в Резонансе",
+    desc: "Кнопка Play теперь всегда строго по центру, а кнопка добавления в плейлист аккуратно расположена справа от эквалайзера.",
   },
   {
-    title: "Усовершенствованный 5-полосный эквалайзер",
-    desc: "Музыкальные полки low/high-shelf, живая SVG-кривая АЧХ, 8 пресетов, сброс 0 dB и регулировка колёсиком мыши.",
+    title: "Эквалайзер под цвет обложки",
+    desc: "Кривая АЧХ и индикаторы эквалайзера теперь динамически меняют цвет под обложку текущего трека.",
   },
   {
-    title: "Градиентная тема, плавная перемотка и авто-кэш",
-    desc: "Новый режим Ambient Gradient, добавление в плейлисты из Резонанса, авто-очистка не-избранного кэша при старте и фикс Gaming Mode.",
+    title: "Чистый нативный интерфейс",
+    desc: "Отключены всплывающие браузерные подсказки при наведении на кнопки, убран Zapret (WinDivert), а Share Card и Awase Wrapped перенесены во Внешний вид.",
+  },
+  {
+    title: "Авто-очистка кэша при старте",
+    desc: "Треки не из избранного автоматически очищаются при каждом запуске (настраивается в Настройках).",
   },
 ];
 
 const ITEMS_EN = [
   {
-    title: "Spotify Premium via Web Playback SDK",
-    desc: "Direct 1:1 playback, 1-click account login without Client ID, and full playlist (>100 tracks) & likes sync.",
+    title: "Smart, Clutter-Free Library",
+    desc: "Removed the All tab — only connected sources are shown in the library, with a one-click prompt to connect services when empty.",
   },
   {
-    title: "Smart Discord Rich Presence",
-    desc: "4 display styles (Minimal, Detailed, Audiophile, Live Lyrics), view-aware Idle status, hide-on-pause toggle, and profile buttons.",
+    title: "Centered Resonance Controls & Playlist Picker",
+    desc: "The Play button is now strictly centered, and the Add to Playlist button sits cleanly to the right of the Equalizer.",
   },
   {
-    title: "Upgraded 5-Band Equalizer",
-    desc: "Musical low/high-shelf filters, live SVG frequency curve, 8 presets, 0 dB quick reset, and mouse wheel control.",
+    title: "Cover-Adaptive Equalizer Curve",
+    desc: "The equalizer's frequency response curve and accents now adapt dynamically to the current track's album art.",
   },
   {
-    title: "Ambient Gradient Theme & Polish",
-    desc: "Optional cover-reactive Ambient Gradient theme, Resonance playlist picker, auto-clean non-favorite cache on startup, and Gaming Mode fixes.",
+    title: "Pure Native Desktop Feel",
+    desc: "Removed native browser hover tooltips across all buttons, removed Zapret (WinDivert), and moved Share Card & Awase Wrapped into Appearance.",
+  },
+  {
+    title: "Startup Cache Cleanup",
+    desc: "Non-favorite cached audio tracks are automatically cleaned up on every startup (configurable in Settings).",
   },
 ];
 

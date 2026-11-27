@@ -193,7 +193,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       onSelectSourceFilter(sourceId);
                       onSelectView("library");
                     }}
-                    title={connected ? t.connected : t.clickToSetup}
                     className={`w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-[13px] transition-colors cursor-pointer ${
                       active
                         ? "bg-white/[0.1] text-white font-medium"
@@ -299,7 +298,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                               onDeletePlaylist(pl.id);
                             }
                           }}
-                          title={t.deletePlaylist}
                           aria-label={t.deletePlaylist}
                           className={`rounded-md transition-colors cursor-pointer ${
                             confirmDeleteId === pl.id

@@ -317,7 +317,6 @@ export const TrackList: React.FC<TrackListProps> = ({
                     e.stopPropagation();
                     onQueueTrack(track);
                   }}
-                  title="Add to queue"
                   aria-label="Add to queue"
                   className="w-8 h-8 flex items-center justify-center rounded-full text-slate-300 opacity-0 group-hover:opacity-100 hover:text-white hover:bg-white/[0.09] transition-all active:scale-90 cursor-pointer"
                 >
@@ -342,7 +341,6 @@ export const TrackList: React.FC<TrackListProps> = ({
                         openUp,
                       });
                     }}
-                    title={t.addToPlaylist}
                     aria-label={t.addToPlaylist}
                     className={`w-8 h-8 flex items-center justify-center rounded-full transition-all active:scale-90 cursor-pointer ${
                       menuState?.track.id === track.id
@@ -361,7 +359,6 @@ export const TrackList: React.FC<TrackListProps> = ({
                       e.stopPropagation();
                       onRemoveFromPlaylist(track);
                     }}
-                    title={t.removeFromPlaylist}
                     aria-label={t.removeFromPlaylist}
                     className="w-8 h-8 flex items-center justify-center rounded-full text-slate-300 opacity-0 group-hover:opacity-100 hover:text-rose-400 hover:bg-rose-500/15 transition-all active:scale-90 cursor-pointer"
                   >

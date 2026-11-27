@@ -1,6 +1,6 @@
 [package]
 name = "awase"
-version = "0.2.4"
+version = "0.2.5"
 description = "Unified Rust audio player harmonizing Local Lossless, Yandex Music, Spotify & SoundCloud"
 authors = ["Mono-no-Awares <mononoawares.dev@gmail.com>"]
 license = "PolyForm-Noncommercial-1.0.0"

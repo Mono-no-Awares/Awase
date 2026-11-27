@@ -116,8 +116,8 @@ export const EqualizerPopover: React.FC<EqualizerPopoverProps> = ({
         <svg viewBox="0 0 340 44" className="w-full h-11 overflow-visible">
           <defs>
             <linearGradient id="eqCurveFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--awase-cyan, #22d3ee)" stopOpacity="0.28" />
-              <stop offset="100%" stopColor="var(--awase-cyan, #22d3ee)" stopOpacity="0.0" />
+              <stop offset="0%" stopColor="rgb(var(--awase-accent-rgb))" stopOpacity="0.28" />
+              <stop offset="100%" stopColor="rgb(var(--awase-accent-rgb))" stopOpacity="0.0" />
             </linearGradient>
           </defs>
           <line x1="0" y1="22" x2="340" y2="22" stroke="rgba(255,255,255,0.12)" strokeDasharray="3 3" strokeWidth="1" />
@@ -125,7 +125,7 @@ export const EqualizerPopover: React.FC<EqualizerPopoverProps> = ({
           <path
             d={curveD}
             fill="none"
-            stroke="var(--awase-cyan, #22d3ee)"
+            stroke="rgb(var(--awase-accent-rgb))"
             strokeWidth="2"
             strokeLinecap="round"
             opacity={eqState.enabled ? 1 : 0.35}

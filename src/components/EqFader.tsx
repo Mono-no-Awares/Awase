@@ -48,7 +48,6 @@ export const EqFader: React.FC<EqFaderProps> = ({ label, value, onChange }) => {
           onChange(next);
         }}
         onDoubleClick={() => onChange(0)}
-        title="Scroll or drag · Double-click to reset 0 dB"
         className="relative h-28 w-8 flex items-center justify-center cursor-pointer touch-none"
       >
         <div className="w-1.5 h-full rounded-full bg-white/[0.1]" />

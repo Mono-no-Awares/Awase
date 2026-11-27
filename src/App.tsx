@@ -121,7 +121,7 @@ export const App: React.FC = () => {
   const [changelogOpen, setChangelogOpen] = useState(false);
   const [preferences, setPreferences] = useState<AppPreferences>(loadPrefs);
   const [activeView, setActiveView] = useState<ActiveView>("stage");
-  const [sourceFilter, setSourceFilter] = useState<SourceKind | "all" | "liked">("all");
+  const [sourceFilter, setSourceFilter] = useState<SourceKind | "all" | "liked">("liked");
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string | null>(null);
   const [tracks, setTracks] = useState<Track[]>([]);
   const [playlistTracks, setPlaylistTracks] = useState<Track[]>([]);
@@ -283,7 +283,7 @@ export const App: React.FC = () => {
         if (autoCleanDays >= 0) {
           api.cleanupNonFavoriteCache(autoCleanDays).catch(() => {});
         }
-        if (seenVer !== "0.2.4") {
+        if (seenVer !== "0.2.5") {
           window.setTimeout(() => setChangelogOpen(true), 1050);
         }
       });
@@ -1159,7 +1159,9 @@ export const App: React.FC = () => {
               isPlaying={telemetry.isPlaying}
               coverPalette={coverPalette}
               playlists={playlists}
+              statuses={statuses}
               scanning={busySource === "local"}
+              onOpenSettings={() => setActiveView("sources")}
               onSelectSourceFilter={(f) => {
                 setSelectedPlaylistId(null);
                 setSourceFilter(f);
@@ -1636,11 +1638,11 @@ export const App: React.FC = () => {
       />
       <ChangelogModal
         open={changelogOpen}
-        version="0.2.4"
+        version="0.2.5"
         language={preferences.language}
         onClose={() => {
           setChangelogOpen(false);
-          setPreferences((prev) => ({ ...prev, lastSeenVersion: "0.2.4" }));
+          setPreferences((prev) => ({ ...prev, lastSeenVersion: "0.2.5" }));
         }}
       />
     </div>

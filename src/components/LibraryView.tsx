@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import type { AppLanguage, Playlist, SourceKind, Track } from "../types";
+import type { AppLanguage, Playlist, SourceKind, SourceStatus, Track } from "../types";
 import type { CoverPalette } from "../lib/colorExtract";
 import { TRANSLATIONS } from "../lib/i18n";
 import { SOURCE_META, SOURCE_ORDER } from "../lib/sources";
@@ -25,8 +25,10 @@ interface LibraryViewProps {
   isPlaying: boolean;
   coverPalette: CoverPalette;
   playlists: Playlist[];
+  statuses?: SourceStatus[];
   scanning: boolean;
   onSelectSourceFilter: (filter: SourceKind | "all" | "liked") => void;
+  onOpenSettings?: () => void;
   onClearSearch: () => void;
   onPlayTrack: (track: Track, list: Track[]) => void;
   onToggleLike: (trackId: string) => void;
@@ -51,8 +53,10 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   isPlaying,
   coverPalette,
   playlists,
+  statuses = [],
   scanning,
   onSelectSourceFilter,
+  onOpenSettings,
   onClearSearch,
   onPlayTrack,
   onToggleLike,
@@ -352,17 +356,6 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => onSelectSourceFilter("all")}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer ${
-                sourceFilter === "all"
-                  ? "bg-white text-[#090B10]"
-                  : "bg-white/[0.07] text-slate-200 hover:bg-white/[0.12]"
-              }`}
-            >
-              {t.allTab}
-            </button>
-            <button
-              type="button"
               onClick={() => onSelectSourceFilter("liked")}
               className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer ${
                 sourceFilter === "liked"
@@ -372,7 +365,10 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
             >
               {t.favorites}
             </button>
-            {SOURCE_ORDER.map((id) => {
+            {SOURCE_ORDER.filter((id) => {
+              const st = statuses.find((s) => s.source === id);
+              return Boolean(st?.connected) || tracks.some((tr) => tr.source === id);
+            }).map((id) => {
               const meta = SOURCE_META[id];
               const active = sourceFilter === id;
               return (
@@ -416,38 +412,65 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         </div>
       </div>
 
-      <TrackList
-        language={language}
-        tracks={displayedTracks}
-        currentTrackId={currentTrackId}
-        isPlaying={isPlaying}
-        coverPalette={coverPalette}
-        onPlayTrack={onPlayTrack}
-        onToggleLike={onToggleLike}
-        onQueueTrack={onQueueTrack}
-        playlists={playlists}
-        onAddToPlaylist={onAddToPlaylist}
-        onRemoveFromPlaylist={
-          selectedPlaylist && onRemoveFromPlaylist
-            ? (tr) => onRemoveFromPlaylist(selectedPlaylist.id, tr)
-            : undefined
-        }
-        sortField={sortField}
-        sortDir={sortDir}
-        onChangeSort={handleSortChange}
-        selectMode={selectMode}
-        selectedIds={selectedIds}
-        onToggleSelect={(id) => {
-          setSelectedIds((prev) => {
-            const next = new Set(prev);
-            if (next.has(id)) next.delete(id);
-            else next.add(id);
-            return next;
-          });
-        }}
-        emptyTitle={searchResults ? t.nothingFound : t.emptyLibraryTitle}
-        emptySubtitle={searchResults ? t.nothingFoundSub : t.emptyLibrarySubtitle}
-      />
+      {!searchResults &&
+      !selectedPlaylist &&
+      displayedTracks.length === 0 &&
+      !statuses.some((s) => s.connected) ? (
+        <button
+          type="button"
+          onClick={() => onOpenSettings?.()}
+          className="w-full text-left awase-card awase-card-hover rounded-2xl p-6 flex items-center justify-between gap-4 cursor-pointer group"
+        >
+          <div className="space-y-1">
+            <div className="font-display text-sm font-semibold text-white">
+              {language === "ru"
+                ? "Нет подключённых сервисов и треков"
+                : "No connected services or tracks yet"}
+            </div>
+            <div className="text-xs text-slate-400">
+              {language === "ru"
+                ? "Нажмите сюда, чтобы подключить Яндекс Музыку, Spotify, SoundCloud или добавить локальную папку."
+                : "Click here to connect Yandex Music, Spotify, SoundCloud, or add a local music folder."}
+            </div>
+          </div>
+          <span className="px-4 py-2 rounded-full bg-white text-[#050507] text-xs font-semibold shrink-0 group-hover:brightness-95 transition-all">
+            {language === "ru" ? "Подключить" : "Connect"}
+          </span>
+        </button>
+      ) : (
+        <TrackList
+          language={language}
+          tracks={displayedTracks}
+          currentTrackId={currentTrackId}
+          isPlaying={isPlaying}
+          coverPalette={coverPalette}
+          onPlayTrack={onPlayTrack}
+          onToggleLike={onToggleLike}
+          onQueueTrack={onQueueTrack}
+          playlists={playlists}
+          onAddToPlaylist={onAddToPlaylist}
+          onRemoveFromPlaylist={
+            selectedPlaylist && onRemoveFromPlaylist
+              ? (tr) => onRemoveFromPlaylist(selectedPlaylist.id, tr)
+              : undefined
+          }
+          sortField={sortField}
+          sortDir={sortDir}
+          onChangeSort={handleSortChange}
+          selectMode={selectMode}
+          selectedIds={selectedIds}
+          onToggleSelect={(id) => {
+            setSelectedIds((prev) => {
+              const next = new Set(prev);
+              if (next.has(id)) next.delete(id);
+              else next.add(id);
+              return next;
+            });
+          }}
+          emptyTitle={searchResults ? t.nothingFound : t.emptyLibraryTitle}
+          emptySubtitle={searchResults ? t.nothingFoundSub : t.emptyLibrarySubtitle}
+        />
+      )}
     </div>
   );
 };

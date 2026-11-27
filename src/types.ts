@@ -93,8 +93,6 @@ export interface WrappedStatsData {
 }
 
 export type RpcStyle = "minimal" | "detailed" | "audiophile" | "lyrics";
-export type RpcAnimation = "eq" | "aura" | "vinyl" | "orb" | "none";
-export type RpcCoverMode = "cover" | "animation";
 
 export interface AppPreferences {
   language: AppLanguage;
@@ -108,12 +106,11 @@ export interface AppPreferences {
   motionStyle: MotionStyle;
   shareCardEnabled?: boolean;
   wrappedEnabled?: boolean;
+  spinCover?: boolean;
   gamingMode: boolean;
   discordRpc: boolean;
   discordAppId: string;
   rpcStyle?: RpcStyle;
-  rpcAnimation?: RpcAnimation;
-  rpcCoverMode?: RpcCoverMode;
   rpcShowIdle?: boolean;
   rpcShowPaused?: boolean;
   rpcShowButtons?: boolean;

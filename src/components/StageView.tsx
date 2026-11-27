@@ -30,6 +30,7 @@ interface StageViewProps {
   statuses: SourceStatus[];
   coverPalette: CoverPalette;
   gamingMode?: boolean;
+  spinCover?: boolean;
   onPlayTrack: (track: Track, list: Track[]) => void;
   onTogglePlay: () => void;
   onToggleLike: (trackId: string) => void;
@@ -49,6 +50,7 @@ export const StageView: React.FC<StageViewProps> = ({
   statuses,
   coverPalette,
   gamingMode = false,
+  spinCover = false,
   onPlayTrack,
   onTogglePlay,
   onToggleLike,
@@ -89,14 +91,26 @@ export const StageView: React.FC<StageViewProps> = ({
           <div className="flex items-center gap-5 min-w-0">
             {currentTrack && (
               <div
-                className="w-24 h-24 rounded-2xl overflow-hidden shrink-0 border border-white/[0.14] bg-[#14151B] flex items-center justify-center transition-shadow duration-700"
+                className={`w-24 h-24 overflow-hidden shrink-0 border border-white/[0.14] bg-[#14151B] flex items-center justify-center transition-shadow duration-700 ${
+                  spinCover ? "rounded-full" : "rounded-2xl"
+                }`}
                 style={{ boxShadow: `0 18px 40px -10px ${coverPalette.glow}` }}
               >
-                <CoverArt
-                  url={currentTrack.coverUrl}
-                  alt={currentTrack.title}
-                  fallback={<SourceIcon source={activeMeta.id} size={34} />}
-                />
+                <div
+                  className={`w-full h-full ${
+                    spinCover
+                      ? telemetry.isPlaying
+                        ? "awase-cover-spin"
+                        : "awase-cover-spin-paused"
+                      : ""
+                  }`}
+                >
+                  <CoverArt
+                    url={currentTrack.coverUrl}
+                    alt={currentTrack.title}
+                    fallback={<SourceIcon source={activeMeta.id} size={34} />}
+                  />
+                </div>
               </div>
             )}
 

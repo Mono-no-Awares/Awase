@@ -43,6 +43,7 @@ interface ResonanceViewProps {
   queueOpen: boolean;
   eqOpen: boolean;
   gamingMode?: boolean;
+  spinCover?: boolean;
   onTogglePlay: () => void;
   onPrev: () => void;
   onNext: () => void;
@@ -77,6 +78,7 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
   queueOpen,
   eqOpen,
   gamingMode = false,
+  spinCover = false,
   onTogglePlay,
   onPrev,
   onNext,
@@ -422,7 +424,9 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
       <div className="relative z-10 flex-1 min-h-0 grid grid-rows-[1fr_auto_1fr] items-center justify-items-center pointer-events-none">
         <div />
         <div
-          className="relative w-[clamp(136px,24vmin,216px)] h-[clamp(136px,24vmin,216px)] rounded-3xl overflow-hidden border border-white/20 bg-[#0A0B0E] flex items-center justify-center transition-transform duration-500"
+          className={`relative w-[clamp(136px,24vmin,216px)] h-[clamp(136px,24vmin,216px)] overflow-hidden border border-white/20 bg-[#0A0B0E] flex items-center justify-center transition-transform duration-500 ${
+            spinCover ? "rounded-full" : "rounded-3xl"
+          }`}
           style={{
             boxShadow: `0 24px 64px -10px ${coverPalette.glow}`,
             transform: telemetry.isPlaying ? `scale(${1 + telemetry.peak * 0.04})` : "scale(1)",
@@ -439,7 +443,13 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
                   setCoverSrc(null);
                 }
               }}
-              className="w-full h-full object-cover"
+              className={`w-full h-full object-cover ${
+                spinCover
+                  ? telemetry.isPlaying
+                    ? "awase-cover-spin"
+                    : "awase-cover-spin-paused"
+                  : ""
+              }`}
             />
           ) : (
             <SourceIcon source={meta.id} size={54} />

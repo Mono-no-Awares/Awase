@@ -65,12 +65,11 @@ const DEFAULT_PREFS: AppPreferences = {
   motionStyle: "silk",
   shareCardEnabled: true,
   wrappedEnabled: true,
+  spinCover: false,
   gamingMode: false,
   discordRpc: true,
   discordAppId: "",
   rpcStyle: "detailed",
-  rpcAnimation: "eq",
-  rpcCoverMode: "cover",
   rpcShowIdle: true,
   rpcShowPaused: true,
   rpcShowButtons: true,
@@ -389,8 +388,6 @@ export const App: React.FC = () => {
           activeView: lyricsOpen ? "lyrics" : activeView,
           lyricLine,
           rpcStyle: preferences.rpcStyle ?? "detailed",
-          rpcAnimation: preferences.rpcAnimation ?? "eq",
-          rpcCoverMode: preferences.rpcCoverMode ?? "cover",
           rpcShowIdle: preferences.rpcShowIdle !== false,
           rpcShowPaused: preferences.rpcShowPaused !== false,
           rpcShowButtons: preferences.rpcShowButtons !== false,
@@ -404,8 +401,6 @@ export const App: React.FC = () => {
       preferences.discordRpc,
       preferences.discordAppId,
       preferences.rpcStyle,
-      preferences.rpcAnimation,
-      preferences.rpcCoverMode,
       preferences.rpcShowIdle,
       preferences.rpcShowPaused,
       preferences.rpcShowButtons,
@@ -442,8 +437,6 @@ export const App: React.FC = () => {
     preferences.discordRpc,
     preferences.discordAppId,
     preferences.rpcStyle,
-    preferences.rpcAnimation,
-    preferences.rpcCoverMode,
     preferences.rpcShowIdle,
     preferences.rpcShowPaused,
     preferences.rpcShowButtons,
@@ -472,11 +465,7 @@ export const App: React.FC = () => {
     }
     if (preferences.discordRpc && preferences.rpcStyle === "lyrics") {
       const nextLine = getActiveRpcLyric(telemetry.positionMs);
-      if (
-        nextLine &&
-        nextLine !== rpcLyricsRef.current.lastLine &&
-        performance.now() - rpcLyricsRef.current.lastPushTs > 4500
-      ) {
+      if (nextLine && nextLine !== rpcLyricsRef.current.lastLine) {
         pushDiscordPresence(telemetry.positionMs);
       }
     }
@@ -1001,6 +990,7 @@ export const App: React.FC = () => {
               statuses={statuses}
               coverPalette={coverPalette}
               gamingMode={preferences.gamingMode}
+              spinCover={preferences.spinCover === true}
               onPlayTrack={handlePlayTrack}
               onTogglePlay={handleTogglePlay}
               onToggleLike={handleToggleLike}
@@ -1042,6 +1032,7 @@ export const App: React.FC = () => {
               queueOpen={queueOpen && !activeWave}
               eqOpen={eqOpen}
               gamingMode={preferences.gamingMode}
+              spinCover={preferences.spinCover === true}
               waveSource={waveSource}
               activeWave={activeWave}
               waveLoading={waveLoading}

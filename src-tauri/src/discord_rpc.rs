@@ -6,7 +6,6 @@ use std::io::{Read, Write};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const DEFAULT_DISCORD_APP_ID: &str = "1575483583013982429";
-const RPC_ASSET_BASE: &str = "https://raw.githubusercontent.com/Mono-no-Awares/Awase/main/assets/rpc";
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -34,8 +33,6 @@ pub struct DiscordPresencePayload {
     pub lyric_line: Option<String>,
     #[serde(default)]
     pub rpc_style: String,
-    #[serde(default)]
-    pub rpc_animation: String,
     #[serde(default = "default_true")]
     pub rpc_show_idle: bool,
     #[serde(default = "default_true")]
@@ -48,8 +45,6 @@ pub struct DiscordPresencePayload {
     pub rpc_show_source: bool,
     #[serde(default)]
     pub rpc_idle_text: String,
-    #[serde(default)]
-    pub rpc_cover_mode: String,
 }
 
 fn default_true() -> bool {
@@ -150,24 +145,6 @@ fn truncate_str(s: &str, max_chars: usize) -> String {
     }
 }
 
-fn animation_large_url(anim: &str) -> String {
-    match anim {
-        "vinyl" => format!("{}/vinyl-spin.gif", RPC_ASSET_BASE),
-        "orb" => format!("{}/idle-orb.gif", RPC_ASSET_BASE),
-        _ => format!("{}/aura-pulse.gif", RPC_ASSET_BASE),
-    }
-}
-
-fn animation_small_url(anim: &str) -> Option<String> {
-    match anim {
-        "none" => None,
-        "vinyl" => Some(format!("{}/vinyl-spin.gif", RPC_ASSET_BASE)),
-        "aura" => Some(format!("{}/aura-pulse.gif", RPC_ASSET_BASE)),
-        "orb" => Some(format!("{}/idle-orb.gif", RPC_ASSET_BASE)),
-        _ => Some(format!("{}/eq-badge.gif", RPC_ASSET_BASE)),
-    }
-}
-
 fn pretty_source(src: &str) -> &'static str {
     match src {
         "yandex" => "Yandex Music",
@@ -232,11 +209,9 @@ pub fn update_presence(opts: DiscordPresencePayload) {
         return;
     }
 
-    if has_track && !opts.is_playing && !opts.rpc_show_paused {
-        if !opts.rpc_show_idle {
-            clear_activity(&mut guard);
-            return;
-        }
+    if has_track && !opts.is_playing && !opts.rpc_show_paused && !opts.rpc_show_idle {
+        clear_activity(&mut guard);
+        return;
     }
 
     if !ensure_connected(&mut guard, &clean_id) {
@@ -261,20 +236,14 @@ pub fn update_presence(opts: DiscordPresencePayload) {
                 _ => "Chilling on Awase Stage".to_string(),
             }
         };
-        let mut act = json!({
+        json!({
             "type": 2,
             "details": idle_detail,
-            "state": "Idle · Ready to play",
+            "state": "Idle · Awase Player",
             "assets": {
-                "large_image": animation_large_url(&opts.rpc_animation),
                 "large_text": "Awase Music Player"
             }
-        });
-        if opts.rpc_animation != "none" {
-            act["assets"]["small_image"] = json!(format!("{}/idle-orb.gif", RPC_ASSET_BASE));
-            act["assets"]["small_text"] = json!("Idle");
-        }
-        act
+        })
     } else {
         let track_title = truncate_str(opts.title.as_deref().unwrap_or("Awase"), 120);
         let track_artist = opts
@@ -311,7 +280,12 @@ pub fn update_presence(opts: DiscordPresencePayload) {
                     if opts.bitrate_kbps > 0 {
                         format!("{} · {} {} kbps", track_artist, codec, opts.bitrate_kbps)
                     } else if opts.sample_rate_hz > 0 {
-                        format!("{} · {} {:.1} kHz", track_artist, codec, opts.sample_rate_hz as f32 / 1000.0)
+                        format!(
+                            "{} · {} {:.1} kHz",
+                            track_artist,
+                            codec,
+                            opts.sample_rate_hz as f32 / 1000.0
+                        )
                     } else {
                         format!("{} · {}", track_artist, codec)
                     }
@@ -368,24 +342,11 @@ pub fn update_presence(opts: DiscordPresencePayload) {
                 u.to_string()
             }
         });
-        let use_anim_cover = opts.rpc_cover_mode == "animation";
-        if !use_anim_cover {
-            if let Some(url) = normalized_cover
-                .as_deref()
-                .filter(|u| u.starts_with("https://") && u.len() < 512)
-            {
-                act["assets"]["large_image"] = json!(url);
-            } else {
-                act["assets"]["large_image"] = json!(animation_large_url(&opts.rpc_animation));
-            }
-        } else {
-            act["assets"]["large_image"] = json!(animation_large_url(&opts.rpc_animation));
-        }
-
-        if !opts.is_playing {
-            act["assets"]["small_image"] = json!(format!("{}/pause-badge.png", RPC_ASSET_BASE));
-        } else if let Some(small_url) = animation_small_url(&opts.rpc_animation) {
-            act["assets"]["small_image"] = json!(small_url);
+        if let Some(url) = normalized_cover
+            .as_deref()
+            .filter(|u| u.starts_with("https://") && u.len() < 512)
+        {
+            act["assets"]["large_image"] = json!(url);
         }
 
         if opts.is_playing && opts.rpc_show_timestamps && opts.duration_ms > 0 {

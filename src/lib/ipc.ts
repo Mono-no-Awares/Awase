@@ -104,8 +104,6 @@ export const api = {
     activeView?: string;
     lyricLine?: string | null;
     rpcStyle?: string;
-    rpcAnimation?: string;
-    rpcCoverMode?: string;
     rpcShowIdle?: boolean;
     rpcShowPaused?: boolean;
     rpcShowButtons?: boolean;

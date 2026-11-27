@@ -11,8 +11,6 @@ import type {
   LocalFolder,
   MiniVisualizerMode,
   MotionStyle,
-  RpcAnimation,
-  RpcCoverMode,
   RpcStyle,
   SourceKind,
   SourceStatus,
@@ -856,6 +854,39 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
               </div>
 
               <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-xs font-medium text-white">
+                    {preferences.language === "ru" ? "Вращать обложку трека" : "Spin Cover Art"}
+                  </div>
+                  <div className="text-[11px] text-slate-400 leading-snug">
+                    {preferences.language === "ru"
+                      ? "Делает обложку круглой и плавно вращает её как винил во время воспроизведения"
+                      : "Turns album art circular and smoothly rotates it like a vinyl record while playing"}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={preferences.spinCover === true}
+                  onClick={() =>
+                    onUpdatePreferences({
+                      ...preferences,
+                      spinCover: preferences.spinCover !== true,
+                    })
+                  }
+                  className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 flex items-center shrink-0 cursor-pointer ${
+                    preferences.spinCover === true ? "bg-cyanpulse" : "bg-white/[0.15]"
+                  }`}
+                >
+                  <span
+                    className={`w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
+                      preferences.spinCover === true ? "translate-x-4" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div
                     className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border ${
@@ -931,25 +962,7 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
                       </div>
                       <div className="flex items-center gap-3">
                         <div className="relative w-14 h-14 rounded-xl bg-[#07080C] border border-white/[0.1] flex items-center justify-center shrink-0 overflow-hidden">
-                          {(preferences.rpcCoverMode ?? "cover") === "animation" ? (
-                            <div
-                              className="w-8 h-8 rounded-full border-2 border-cyanpulse/70 animate-pulse"
-                              style={{ boxShadow: "0 0 18px rgba(56,189,248,0.45)" }}
-                            />
-                          ) : (
-                            <AwaseLogo size={28} />
-                          )}
-                          {(preferences.rpcAnimation ?? "eq") !== "none" && (
-                            <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-[#111214] border border-white/20 flex items-center justify-center text-[9px] text-cyanpulse font-bold">
-                              {(preferences.rpcAnimation ?? "eq") === "vinyl"
-                                ? "◉"
-                                : (preferences.rpcAnimation ?? "eq") === "aura"
-                                  ? "✦"
-                                  : (preferences.rpcAnimation ?? "eq") === "orb"
-                                    ? "●"
-                                    : "ılı"}
-                            </span>
-                          )}
+                          <AwaseLogo size={28} />
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="text-xs font-semibold text-white truncate">
@@ -1018,67 +1031,6 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
                       </div>
                     </div>
 
-                    <div className="space-y-1.5">
-                      <div className="text-[11px] font-medium text-slate-300">
-                        {preferences.language === "ru" ? "Анимация активности" : "Activity Animation"}
-                      </div>
-                      <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
-                        {(
-                          [
-                            { id: "eq", label: preferences.language === "ru" ? "Эквалайзер" : "EQ Bars" },
-                            { id: "aura", label: preferences.language === "ru" ? "Аура" : "Aura" },
-                            { id: "vinyl", label: preferences.language === "ru" ? "Винил" : "Vinyl" },
-                            { id: "orb", label: preferences.language === "ru" ? "Орбита" : "Orb" },
-                            { id: "none", label: preferences.language === "ru" ? "Выкл" : "None" },
-                          ] as Array<{ id: RpcAnimation; label: string }>
-                        ).map((opt) => (
-                          <button
-                            key={opt.id}
-                            type="button"
-                            onClick={() =>
-                              onUpdatePreferences({ ...preferences, rpcAnimation: opt.id })
-                            }
-                            className={`px-2 py-1.5 rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
-                              (preferences.rpcAnimation ?? "eq") === opt.id
-                                ? "bg-white text-[#050507] shadow-sm"
-                                : "bg-white/[0.06] text-slate-300 hover:bg-white/[0.12] hover:text-white"
-                            }`}
-                          >
-                            {opt.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <div className="text-[11px] font-medium text-slate-300">
-                        {preferences.language === "ru" ? "Большая картинка" : "Large Image"}
-                      </div>
-                      <div className="grid grid-cols-2 gap-1.5">
-                        {(
-                          [
-                            { id: "cover", label: preferences.language === "ru" ? "Обложка трека" : "Album Cover" },
-                            { id: "animation", label: preferences.language === "ru" ? "Всегда анимация (GIF)" : "Always Animation (GIF)" },
-                          ] as Array<{ id: RpcCoverMode; label: string }>
-                        ).map((opt) => (
-                          <button
-                            key={opt.id}
-                            type="button"
-                            onClick={() =>
-                              onUpdatePreferences({ ...preferences, rpcCoverMode: opt.id })
-                            }
-                            className={`px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
-                              (preferences.rpcCoverMode ?? "cover") === opt.id
-                                ? "bg-white text-[#050507] shadow-sm"
-                                : "bg-white/[0.06] text-slate-300 hover:bg-white/[0.12] hover:text-white"
-                            }`}
-                          >
-                            {opt.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                       {(
                         [
@@ -1132,19 +1084,26 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
                     </div>
 
                     {preferences.rpcShowIdle !== false && (
-                      <input
-                        type="text"
-                        value={preferences.rpcIdleText ?? ""}
-                        onChange={(e) =>
-                          onUpdatePreferences({ ...preferences, rpcIdleText: e.target.value })
-                        }
-                        placeholder={
-                          preferences.language === "ru"
-                            ? "Свой текст в Idle (необязательно — иначе авто по экрану)"
-                            : "Custom Idle text (optional — auto-detects view otherwise)"
-                        }
-                        className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/[0.09] text-xs text-white placeholder:text-slate-400 focus:outline-none focus:border-cyanpulse/50"
-                      />
+                      <div className="space-y-1">
+                        <div className="text-[11px] font-medium text-slate-300">
+                          {preferences.language === "ru"
+                            ? "Свой статус при простое (когда музыка не играет)"
+                            : "Custom Idle Text (shown when no track is playing)"}
+                        </div>
+                        <input
+                          type="text"
+                          value={preferences.rpcIdleText ?? ""}
+                          onChange={(e) =>
+                            onUpdatePreferences({ ...preferences, rpcIdleText: e.target.value })
+                          }
+                          placeholder={
+                            preferences.language === "ru"
+                              ? "Оставьте пустым — Awase сам покажет ваш экран (Резонанс / Библиотека)"
+                              : "Leave empty — Awase auto-detects your screen (Resonance / Library)"
+                          }
+                          className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/[0.09] text-xs text-white placeholder:text-slate-400 focus:outline-none focus:border-cyanpulse/50"
+                        />
+                      </div>
                     )}
                   </div>
                 )}

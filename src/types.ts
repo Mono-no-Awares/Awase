@@ -106,7 +106,6 @@ export interface AppPreferences {
   motionStyle: MotionStyle;
   shareCardEnabled?: boolean;
   wrappedEnabled?: boolean;
-  ambientGradient?: boolean;
   cacheAutoCleanDays?: number;
   lastSeenVersion?: string;
   gamingMode: boolean;

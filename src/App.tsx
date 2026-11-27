@@ -66,7 +66,6 @@ const DEFAULT_PREFS: AppPreferences = {
   motionStyle: "silk",
   shareCardEnabled: true,
   wrappedEnabled: true,
-  ambientGradient: false,
   cacheAutoCleanDays: 0,
   lastSeenVersion: "",
   gamingMode: false,
@@ -340,20 +339,13 @@ export const App: React.FC = () => {
   }, [currentTrack?.id, currentTrack?.coverUrl, currentTrack?.source]);
 
   useEffect(() => {
-    const useCover = preferences.coverAdaptiveTheme && currentTrack !== null;
-    const activeAccent = useCover ? coverPalette.primary : preferences.accentColor;
+    const useCover = currentTrack !== null;
+    const activeAccent = useCover ? coverPalette.primary : "#E2E8F0";
     const activeAccent2 = useCover ? coverPalette.secondary : "#A78BFA";
-    const activeBg = preferences.coverAdaptiveTheme ? "#050507" : preferences.bgColor;
     document.documentElement.style.setProperty("--awase-accent-rgb", hexToRgbTriplet(activeAccent));
     document.documentElement.style.setProperty("--awase-accent2-rgb", hexToRgbTriplet(activeAccent2));
-    document.documentElement.style.setProperty("--awase-void", activeBg);
-  }, [
-    preferences.coverAdaptiveTheme,
-    preferences.accentColor,
-    preferences.bgColor,
-    coverPalette,
-    currentTrack,
-  ]);
+    document.documentElement.style.setProperty("--awase-void", "#050507");
+  }, [coverPalette, currentTrack]);
 
   const rpcLyricsRef = useRef<{
     trackId: string | null;
@@ -937,18 +929,6 @@ export const App: React.FC = () => {
 
   return (
     <div className="h-screen w-screen flex flex-col bg-[#050507] text-[#F1F5F9] overflow-hidden relative">
-      {preferences.ambientGradient && (
-        <div
-          className="pointer-events-none fixed inset-0 z-0 transition-all duration-1000"
-          style={{
-            background: `
-              radial-gradient(circle at 18% 36%, ${coverPalette.glow}, transparent 54%),
-              radial-gradient(circle at 82% 24%, ${coverPalette.secondary}26, transparent 52%),
-              linear-gradient(155deg, ${coverPalette.primary}1C 0%, #060609 54%, #050507 100%)
-            `,
-          }}
-        />
-      )}
       <div
         className={`fixed inset-0 z-[80] flex flex-col items-center justify-center gap-5 bg-[#050507] transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
           booting

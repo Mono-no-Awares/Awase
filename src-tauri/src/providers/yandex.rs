@@ -298,6 +298,14 @@ async fn fetch_rotor_station(
     Ok((batch_id, parsed))
 }
 
+fn norm_track_key(t: &Track) -> String {
+    format!(
+        "{}|{}",
+        t.title.trim().to_lowercase(),
+        t.artist.trim().to_lowercase()
+    )
+}
+
 pub async fn fetch_my_wave(
     client: &Client,
     token: &str,
@@ -321,15 +329,23 @@ pub async fn fetch_my_wave(
     let (new_batch_id, mut parsed) =
         fetch_rotor_station(client, token, "user:onyourwave", queue_param.as_deref()).await?;
 
-    let mut fresh: Vec<Track> = {
+    let filter_unseen = |list: &[Track]| -> Vec<Track> {
         let guard = WAVE_SESSION.lock();
         let seen = guard.as_ref().map(|s| &s.seen_ids);
-        parsed
-            .iter()
-            .filter(|t| seen.map(|s| !s.contains(&t.external_id)).unwrap_or(true))
+        let mut batch_keys = HashSet::new();
+        list.iter()
+            .filter(|t| {
+                let key = norm_track_key(t);
+                let unseen = seen
+                    .map(|s| !s.contains(&t.external_id) && !s.contains(&key))
+                    .unwrap_or(true);
+                unseen && batch_keys.insert(key)
+            })
             .cloned()
             .collect()
     };
+
+    let mut fresh = filter_unseen(&parsed);
 
     if fresh.is_empty() && !seed_ids.is_empty() {
         if let Some(first) = parsed.first() {
@@ -339,18 +355,16 @@ pub async fn fetch_my_wave(
             .duration_since(UNIX_EPOCH)
             .map(|d| d.subsec_nanos() as usize)
             .unwrap_or(0);
-        let pick_idx = nanos % seed_ids.len();
-        let seed_station = format!("track:{}", seed_ids[pick_idx]);
-        if let Ok((_, alt_parsed)) = fetch_rotor_station(client, token, &seed_station, None).await {
-            if !alt_parsed.is_empty() {
-                parsed = alt_parsed;
-                let guard = WAVE_SESSION.lock();
-                let seen = guard.as_ref().map(|s| &s.seen_ids);
-                fresh = parsed
-                    .iter()
-                    .filter(|t| seen.map(|s| !s.contains(&t.external_id)).unwrap_or(true))
-                    .cloned()
-                    .collect();
+        for attempt in 0..3.min(seed_ids.len()) {
+            let pick_idx = (nanos + attempt * 7) % seed_ids.len();
+            let seed_station = format!("track:{}", seed_ids[pick_idx]);
+            if let Ok((_, alt_parsed)) = fetch_rotor_station(client, token, &seed_station, None).await {
+                let alt_fresh = filter_unseen(&alt_parsed);
+                if !alt_fresh.is_empty() {
+                    parsed = alt_parsed;
+                    fresh = alt_fresh;
+                    break;
+                }
             }
         }
     }
@@ -365,7 +379,7 @@ pub async fn fetch_my_wave(
         if new_batch_id.is_some() {
             sess.batch_id = new_batch_id;
         }
-        if sess.seen_ids.len() > 400 {
+        if sess.seen_ids.len() > 800 {
             sess.seen_ids.clear();
         }
         let chosen = if fresh.is_empty() { parsed } else { fresh };
@@ -374,6 +388,7 @@ pub async fn fetch_my_wave(
         }
         for t in &chosen {
             sess.seen_ids.insert(t.external_id.clone());
+            sess.seen_ids.insert(norm_track_key(t));
         }
         chosen
     };

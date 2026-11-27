@@ -268,6 +268,9 @@ pub async fn sync_likes(
     Ok(out)
 }
 
+static SC_WAVE_SEEN: std::sync::LazyLock<parking_lot::Mutex<std::collections::HashSet<String>>> =
+    std::sync::LazyLock::new(|| parking_lot::Mutex::new(std::collections::HashSet::new()));
+
 pub async fn fetch_my_wave(
     client: &Client,
     client_id: &str,
@@ -281,10 +284,19 @@ pub async fn fetch_my_wave(
         let mut rng = rand::thread_rng();
         seeds.shuffle(&mut rng);
     }
-    seeds.truncate(3);
+    seeds.truncate(4);
 
     let mut collected = Vec::new();
-    let mut seen: std::collections::HashSet<String> = seed_ids.iter().cloned().collect();
+    let mut seen: std::collections::HashSet<String> = {
+        let mut g = SC_WAVE_SEEN.lock();
+        if g.len() > 600 {
+            g.clear();
+        }
+        g.clone()
+    };
+    for s in seed_ids {
+        seen.insert(s.clone());
+    }
 
     for seed in seeds {
         let url = format!("{}/tracks/{}/related", SC_API, seed);
@@ -312,7 +324,8 @@ pub async fn fetch_my_wave(
             if let Some(arr) = json.get("collection").and_then(|c| c.as_array()) {
                 for item in arr {
                     if let Some(t) = parse_track(item, false) {
-                        if seen.insert(t.external_id.clone()) {
+                        let key = format!("{}|{}", t.title.trim().to_lowercase(), t.artist.trim().to_lowercase());
+                        if seen.insert(t.external_id.clone()) && seen.insert(key) {
                             collected.push(t);
                         }
                     }
@@ -324,7 +337,8 @@ pub async fn fetch_my_wave(
     if collected.is_empty() {
         let fallback = search_tracks(client, &active_cid, "electronic chillwave").await?;
         for t in fallback {
-            if seen.insert(t.external_id.clone()) {
+            let key = format!("{}|{}", t.title.trim().to_lowercase(), t.artist.trim().to_lowercase());
+            if seen.insert(t.external_id.clone()) && seen.insert(key) {
                 collected.push(t);
             }
         }
@@ -333,6 +347,13 @@ pub async fn fetch_my_wave(
     let mut rng = rand::thread_rng();
     collected.shuffle(&mut rng);
     collected.truncate(24);
+    {
+        let mut g = SC_WAVE_SEEN.lock();
+        for t in &collected {
+            g.insert(t.external_id.clone());
+            g.insert(format!("{}|{}", t.title.trim().to_lowercase(), t.artist.trim().to_lowercase()));
+        }
+    }
     Ok(collected)
 }
 

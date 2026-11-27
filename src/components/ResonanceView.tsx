@@ -471,19 +471,21 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
             >
               <IconEqualizer size={18} />
             </button>
-            <button
-              type="button"
-              onClick={onToggleQueue}
-              title={t.queueTitle}
-              aria-label={t.queueTitle}
-              className={`p-2 rounded-full transition-colors cursor-pointer ${
-                queueOpen
-                  ? "text-cyanpulse bg-white/[0.1]"
-                  : "text-slate-300 hover:text-white hover:bg-white/[0.08]"
-              }`}
-            >
-              <IconQueue size={18} />
-            </button>
+            {!activeWave && (
+              <button
+                type="button"
+                onClick={onToggleQueue}
+                title={t.queueTitle}
+                aria-label={t.queueTitle}
+                className={`p-2 rounded-full transition-colors cursor-pointer ${
+                  queueOpen
+                    ? "text-cyanpulse bg-white/[0.1]"
+                    : "text-slate-300 hover:text-white hover:bg-white/[0.08]"
+                }`}
+              >
+                <IconQueue size={18} />
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-2.5">

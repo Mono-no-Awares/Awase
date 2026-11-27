@@ -36,6 +36,7 @@ interface PlayerDockProps {
   shuffle: boolean;
   repeat: RepeatMode;
   queueOpen: boolean;
+  hideQueue?: boolean;
   eqOpen: boolean;
   lyricsOpen: boolean;
   resonanceActive: boolean;
@@ -64,6 +65,7 @@ export const PlayerDock: React.FC<PlayerDockProps> = ({
   shuffle,
   repeat,
   queueOpen,
+  hideQueue = false,
   eqOpen,
   lyricsOpen,
   resonanceActive,
@@ -316,19 +318,21 @@ export const PlayerDock: React.FC<PlayerDockProps> = ({
           <IconEqualizer size={19} />
         </button>
 
-        <button
-          type="button"
-          onClick={onToggleQueue}
-          title={t.queueTitle}
-          aria-label={t.queueTitle}
-          className={`p-2.5 rounded-full transition-all active:scale-95 cursor-pointer ${
-            queueOpen
-              ? "text-cyanpulse bg-white/[0.1]"
-              : "text-slate-300 hover:text-white hover:bg-white/[0.08]"
-          }`}
-        >
-          <IconQueue size={19} />
-        </button>
+        {!hideQueue && (
+          <button
+            type="button"
+            onClick={onToggleQueue}
+            title={t.queueTitle}
+            aria-label={t.queueTitle}
+            className={`p-2.5 rounded-full transition-all active:scale-95 cursor-pointer ${
+              queueOpen
+                ? "text-cyanpulse bg-white/[0.1]"
+                : "text-slate-300 hover:text-white hover:bg-white/[0.08]"
+            }`}
+          >
+            <IconQueue size={19} />
+          </button>
+        )}
 
         <div className="flex items-center gap-2 pl-2">
           <button

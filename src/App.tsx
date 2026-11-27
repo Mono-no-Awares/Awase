@@ -387,8 +387,12 @@ export const App: React.FC = () => {
     [notify, preferences.language]
   );
 
+  const waveTrackKey = (t: Track) =>
+    `${t.title.trim().toLowerCase()}|${t.artist.trim().toLowerCase()}`;
+
   const handlePlayTrack = useCallback(
     async (track: Track, list: Track[]) => {
+      setActiveWave(null);
       const idx = list.findIndex((t) => t.id === track.id);
       if (idx >= 0) {
         setQueue(list);
@@ -397,11 +401,11 @@ export const App: React.FC = () => {
         setQueue([track, ...queue]);
         setCurrentIndex(0);
       }
-      await startTrackPlayback(track);
       const nextAfter = idx >= 0 && idx + 1 < list.length ? list[idx + 1] : null;
       if (nextAfter) {
         api.prefetchTrack(nextAfter).catch(() => {});
       }
+      await startTrackPlayback(track);
     },
     [queue, startTrackPlayback]
   );
@@ -415,14 +419,25 @@ export const App: React.FC = () => {
     let nextIdx = currentIndex + 1;
     let workingQueue = queue;
 
+    const filterFreshWave = (items: Track[], existing: Track[]) => {
+      const ids = new Set(existing.map((t) => t.id));
+      return items.filter((t) => {
+        const key = waveTrackKey(t);
+        return (
+          !ids.has(t.id) &&
+          !waveSeenIdsRef.current.has(t.id) &&
+          !waveSeenIdsRef.current.has(key)
+        );
+      });
+    };
+
     if (shuffle && workingQueue.length > 1) {
       nextIdx = Math.floor(Math.random() * workingQueue.length);
     } else if (nextIdx >= workingQueue.length) {
       if (activeWave) {
         try {
           const more = await api.getWaveTracks(activeWave, false);
-          const ids = new Set(workingQueue.map((t) => t.id));
-          const fresh = more.filter((t) => !ids.has(t.id));
+          const fresh = filterFreshWave(more, workingQueue);
           if (fresh.length > 0) {
             workingQueue = [...workingQueue, ...fresh];
             setQueue(workingQueue);
@@ -445,19 +460,26 @@ export const App: React.FC = () => {
         .then((more) => {
           if (more.length > 0) {
             setQueue((prev) => {
-              const ids = new Set(prev.map((t) => t.id));
-              const fresh = more.filter((t) => !ids.has(t.id));
+              const fresh = filterFreshWave(more, prev);
               return fresh.length > 0 ? [...prev, ...fresh] : prev;
             });
           }
         })
         .catch(() => {});
     }
+    const chosen = workingQueue[nextIdx];
+    if (activeWave && chosen) {
+      waveSeenIdsRef.current.add(chosen.id);
+      waveSeenIdsRef.current.add(waveTrackKey(chosen));
+      if (waveSeenIdsRef.current.size > 600) {
+        waveSeenIdsRef.current.clear();
+      }
+    }
     setCurrentIndex(nextIdx);
-    await startTrackPlayback(workingQueue[nextIdx]);
     if (nextIdx + 1 < workingQueue.length) {
       api.prefetchTrack(workingQueue[nextIdx + 1]).catch(() => {});
     }
+    void startTrackPlayback(chosen);
   }, [queue, currentIndex, repeat, shuffle, activeWave, waveLoading, startTrackPlayback]);
 
   useEffect(() => {
@@ -469,19 +491,26 @@ export const App: React.FC = () => {
   const handleStartWave = useCallback(
     async (source: WaveSource) => {
       setWaveSource(source);
+      setQueueOpen(false);
       setWaveLoading(true);
       try {
         let waveTracks = await api.getWaveTracks(source, true);
-        let fresh = waveTracks.filter((t) => !waveSeenIdsRef.current.has(t.id));
+        const isUnseen = (t: Track) =>
+          !waveSeenIdsRef.current.has(t.id) &&
+          !waveSeenIdsRef.current.has(waveTrackKey(t));
+        let fresh = waveTracks.filter(isUnseen);
         if (fresh.length === 0 && waveTracks.length > 0) {
           const secondBatch = await api.getWaveTracks(source, false).catch(() => []);
-          fresh = secondBatch.filter((t) => !waveSeenIdsRef.current.has(t.id));
+          fresh = secondBatch.filter(isUnseen);
           if (fresh.length > 0) waveTracks = fresh;
         } else if (fresh.length > 0) {
           waveTracks = fresh;
         }
-        waveTracks.forEach((t) => waveSeenIdsRef.current.add(t.id));
-        if (waveSeenIdsRef.current.size > 300) {
+        waveTracks.forEach((t) => {
+          waveSeenIdsRef.current.add(t.id);
+          waveSeenIdsRef.current.add(waveTrackKey(t));
+        });
+        if (waveSeenIdsRef.current.size > 600) {
           waveSeenIdsRef.current.clear();
         }
         if (waveTracks.length === 0) {
@@ -789,7 +818,7 @@ export const App: React.FC = () => {
               }
               shuffle={shuffle}
               repeat={repeat}
-              queueOpen={queueOpen}
+              queueOpen={queueOpen && !activeWave}
               eqOpen={eqOpen}
               gamingMode={preferences.gamingMode}
               waveSource={waveSource}
@@ -1091,7 +1120,7 @@ export const App: React.FC = () => {
         </main>
 
         <QueueDrawer
-          open={queueOpen}
+          open={queueOpen && !activeWave}
           language={preferences.language}
           queue={queue}
           currentIndex={currentIndex}
@@ -1257,7 +1286,8 @@ export const App: React.FC = () => {
         coverPalette={coverPalette}
         shuffle={shuffle}
         repeat={repeat}
-        queueOpen={queueOpen}
+        queueOpen={queueOpen && !activeWave}
+        hideQueue={activeWave !== null}
         eqOpen={eqOpen}
         lyricsOpen={lyricsOpen}
         resonanceActive={activeView === "resonance"}

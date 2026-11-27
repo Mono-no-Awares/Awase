@@ -172,6 +172,128 @@ pub async fn rescan_local_folders(state: State<'_, AppState>) -> Result<usize, S
     .map_err(|e| e.to_string())?
 }
 
+fn strip_parens_and_feat(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut p_depth = 0usize;
+    let mut b_depth = 0usize;
+    for ch in s.chars() {
+        match ch {
+            '(' => p_depth += 1,
+            ')' => p_depth = p_depth.saturating_sub(1),
+            '[' => b_depth += 1,
+            ']' => b_depth = b_depth.saturating_sub(1),
+            _ if p_depth == 0 && b_depth == 0 => out.push(ch),
+            _ => {}
+        }
+    }
+    out.to_lowercase()
+        .replace("feat.", " ")
+        .replace("ft.", " ")
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|t| !t.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn score_spotify_candidate(target: &Track, cand: &Track) -> Option<i32> {
+    if cand.source == SourceKind::Spotify {
+        return None;
+    }
+    let t_title_raw = target.title.to_lowercase();
+    let c_title_raw = cand.title.to_lowercase();
+
+    const UNWANTED_TAGS: &[&str] = &[
+        "remix",
+        "slowed",
+        "reverb",
+        "nightcore",
+        "sped up",
+        "speed up",
+        "mashup",
+        "cover",
+        "live",
+        "instrumental",
+        "karaoke",
+        "8d",
+        "bass boost",
+        "bootleg",
+        "flip",
+        "acoustic",
+        "demo",
+    ];
+    let mut score: i32 = 0;
+    for tag in UNWANTED_TAGS {
+        if c_title_raw.contains(tag) && !t_title_raw.contains(tag) {
+            score -= 120;
+        }
+    }
+
+    let t_clean = strip_parens_and_feat(&target.title);
+    let c_clean = strip_parens_and_feat(&cand.title);
+    let t_tokens: Vec<&str> = t_clean.split_whitespace().collect();
+    let c_tokens: Vec<&str> = c_clean.split_whitespace().collect();
+    if t_tokens.is_empty() || c_tokens.is_empty() {
+        return None;
+    }
+
+    if t_clean == c_clean {
+        score += 80;
+    } else if c_clean.contains(&t_clean) || t_clean.contains(&c_clean) {
+        score += 50;
+    } else {
+        let hits = t_tokens.iter().filter(|tt| c_tokens.contains(tt)).count();
+        let ratio = hits as f64 / t_tokens.len() as f64;
+        if ratio < 0.5 {
+            return None;
+        }
+        score += (ratio * 45.0) as i32;
+    }
+
+    let first_artist = target
+        .artist
+        .split(',')
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_lowercase();
+    let a_tokens: Vec<String> = strip_parens_and_feat(&first_artist)
+        .split_whitespace()
+        .map(str::to_string)
+        .collect();
+    let c_artist_clean = strip_parens_and_feat(&cand.artist);
+    let c_combined = format!("{} {}", c_artist_clean, c_clean);
+    if !a_tokens.is_empty() {
+        let a_hits = a_tokens
+            .iter()
+            .filter(|at| c_combined.contains(at.as_str()))
+            .count();
+        if a_hits == a_tokens.len() {
+            score += 55;
+        } else if a_hits > 0 {
+            score += 25;
+        } else {
+            score -= 70;
+        }
+    }
+
+    if target.duration_ms > 0 && cand.duration_ms > 0 {
+        let diff_sec = (target.duration_ms as i64 - cand.duration_ms as i64).abs() / 1000;
+        if diff_sec <= 3 {
+            score += 50;
+        } else if diff_sec <= 8 {
+            score += 25;
+        } else if diff_sec > 20 {
+            score -= 80;
+        }
+    }
+
+    if score >= 50 {
+        Some(score)
+    } else {
+        None
+    }
+}
+
 #[tauri::command]
 pub async fn play_track(state: State<'_, AppState>, track: Track) -> Result<(), String> {
     let seq = state.play_seq.fetch_add(1, Ordering::SeqCst) + 1;
@@ -201,6 +323,9 @@ pub async fn play_track(state: State<'_, AppState>, track: Track) -> Result<(), 
             });
             let (stream_url, _, ext) =
                 yandex::resolve_stream_url(&state.http, &token, &track.external_id).await?;
+            if state.play_seq.load(Ordering::SeqCst) != seq {
+                return Ok(());
+            }
             providers::download_to_cache(
                 &state.http,
                 &state.cache_dir,
@@ -232,21 +357,16 @@ pub async fn play_track(state: State<'_, AppState>, track: Track) -> Result<(), 
             out
         }
         SourceKind::Spotify => {
-            let title_lc = track.title.to_lowercase();
-            let artist_lc = track.artist.to_lowercase();
-            let first_artist = artist_lc.split(',').next().unwrap_or("").trim().to_string();
-
             let local_match = state
                 .db
                 .get_tracks(None, Some(&track.title))
                 .ok()
                 .and_then(|candidates| {
-                    candidates.into_iter().find(|c| {
-                        c.source != SourceKind::Spotify
-                            && c.title.to_lowercase().contains(&title_lc)
-                            && (first_artist.is_empty()
-                                || c.artist.to_lowercase().contains(&first_artist))
-                    })
+                    candidates
+                        .into_iter()
+                        .filter_map(|c| score_spotify_candidate(&track, &c).map(|s| (s, c)))
+                        .max_by_key(|(s, _)| *s)
+                        .map(|(_, c)| c)
                 });
 
             if let Some(matched) = local_match {
@@ -298,11 +418,12 @@ pub async fn play_track(state: State<'_, AppState>, track: Track) -> Result<(), 
                 if let Ok(Some((Some(ytok), _, _, _))) = state.db.get_credentials(SourceKind::Yandex) {
                     let y_query = format!("{} {}", track.artist, track.title);
                     if let Ok(y_tracks) = yandex::search_tracks(&state.http, Some(ytok.as_str()), &y_query).await {
-                        if let Some(best_y) = y_tracks.into_iter().find(|y| {
-                            y.title.to_lowercase().contains(&title_lc)
-                                || (!first_artist.is_empty()
-                                    && y.artist.to_lowercase().contains(&first_artist))
-                        }) {
+                        let mut scored_y: Vec<(i32, Track)> = y_tracks
+                            .into_iter()
+                            .filter_map(|y| score_spotify_candidate(&track, &y).map(|s| (s, y)))
+                            .collect();
+                        scored_y.sort_by(|a, b| b.0.cmp(&a.0));
+                        for (_, best_y) in scored_y.into_iter().take(2) {
                             if let Ok((stream_url, _, ext)) =
                                 yandex::resolve_stream_url(&state.http, &ytok, &best_y.external_id)
                                     .await
@@ -318,6 +439,7 @@ pub async fn play_track(state: State<'_, AppState>, track: Track) -> Result<(), 
                                 .await
                                 {
                                     resolved_path = Some(p);
+                                    break;
                                 }
                             }
                         }
@@ -344,15 +466,12 @@ pub async fn play_track(state: State<'_, AppState>, track: Track) -> Result<(), 
                                     .await
                                     .unwrap_or_default();
                         }
-                        for candidate in sc_candidates
+                        let mut scored_sc: Vec<(i32, Track)> = sc_candidates
                             .into_iter()
-                            .filter(|s| {
-                                s.title.to_lowercase().contains(&title_lc)
-                                    || (!first_artist.is_empty()
-                                        && s.artist.to_lowercase().contains(&first_artist))
-                            })
-                            .take(4)
-                        {
+                            .filter_map(|s| score_spotify_candidate(&track, &s).map(|sc| (sc, s)))
+                            .collect();
+                        scored_sc.sort_by(|a, b| b.0.cmp(&a.0));
+                        for (_, candidate) in scored_sc.into_iter().take(3) {
                             if let Ok(p) = soundcloud::resolve_and_download(
                                 &state.http,
                                 &state.cache_dir,

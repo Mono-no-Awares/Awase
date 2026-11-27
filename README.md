@@ -6,7 +6,7 @@
 
 **Fast, low-RAM Windows desktop music player in Rust — unifying Local Lossless, Yandex Music, Spotify & SoundCloud.**
 
-**English** | [Русский](README.ru.md)
+**English** | [Русский](README.ru.md) 
 
 ![Rust](https://img.shields.io/badge/Rust-1.80+-f97316?style=flat-square&logo=rust&logoColor=white)
 ![Tauri](https://img.shields.io/badge/Tauri-v2-24c8db?style=flat-square&logo=tauri&logoColor=white)

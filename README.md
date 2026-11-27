@@ -31,12 +31,12 @@
 ## Features
 
 - **Unified Library** — Combine local lossless folders (`FLAC`, `WAV`, `MP3`, `M4A`, `AAC`, `OGG` with embedded cover art) alongside **Yandex Music**, **Spotify**, and **SoundCloud** in a single high-FPS virtualized library.
-- **Native Rust Audio Engine & 5-Band EQ** — Powered by `rodio` + `symphonia` + `rustfft` with real-time 32-band FFT spectrum telemetry, musical 5-band parametric equalizer (`60Hz` – `14kHz`) with automatic preamp headroom, and custom output device selection.
+- **Native Rust Audio Engine & 5-Band EQ** — Powered by `rodio` + `symphonia` + `rustfft` with real-time 32-band FFT spectrum telemetry, musical 5-band parametric/shelf equalizer (`60Hz` – `14kHz`) with automatic preamp headroom and 8 presets, and custom output device selection.
 - **Resonance Visualizers** — Three cover-color-reactive Canvas visualizers (**Aura**, **Silk**, **Orbital**) with integrated playback controls and `F11` fullscreen mode.
-- **Zero-Premium Spotify & Native SoundCloud HLS/fMP4** — Import public Spotify playlists by URL or `.csv`/`.json` library exports without Premium (with automatic full-track matching across your connected sources), plus native Rust MPEG-TS & fMP4-to-ADTS-AAC demuxing for SoundCloud streams.
+- **Spotify Premium SDK & Native SoundCloud HLS/fMP4** — Direct Spotify Premium playback via official Web Playback SDK (`>100` track playlists, likes & `.csv`/`.json` import), plus native Rust MPEG-TS & fMP4-to-ADTS-AAC demuxing and built-in RU ISP bypass for SoundCloud streams.
 - **Cover-Adaptive & Custom Themes** — Pure OLED obsidian interface that adapts accents to the current track's album art, or lets you pick custom accent/background colors, typography, and motion presets (`Fluid`, `Snappy`, `Silk`).
 - **Discord Rich Presence** — Native Windows Named Pipe IPC (`Listening to ...`) with track title, artist, cover art, and live progress bar (toggleable in Settings).
-- **Gaming Mode & System Tray** — One-click **Gaming Mode** disables blur/canvas rendering, throttles telemetry, and trims the OS working set for minimal background RAM/CPU. Closing the window minimizes smoothly to the Windows system tray.
+- **Gaming Mode & System Tray** — One-click **Gaming Mode** disables canvas rendering & view animations and throttles telemetry for minimal background RAM/CPU. Closing the window minimizes smoothly to the Windows system tray.
 - **Full Settings Backup** — Export and import your UI preferences, EQ curve, local folders, playlists, and connected tokens as a single `.json` file.
 
 ---

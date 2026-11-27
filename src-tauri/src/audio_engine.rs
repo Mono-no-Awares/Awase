@@ -57,6 +57,68 @@ impl BiquadCoeffs {
             a2: a2 / a0,
         }
     }
+
+    fn low_shelf(sample_rate: f32, freq: f32, gain_db: f32) -> Self {
+        if gain_db.abs() < 0.05 || freq >= sample_rate * 0.48 {
+            return Self {
+                b0: 1.0,
+                b1: 0.0,
+                b2: 0.0,
+                a1: 0.0,
+                a2: 0.0,
+            };
+        }
+        let a = 10.0f32.powf(gain_db / 40.0);
+        let w0 = 2.0 * PI * freq / sample_rate;
+        let cos_w0 = w0.cos();
+        let sin_w0 = w0.sin();
+        let alpha = sin_w0 / 2.0 * 2.0f32.sqrt();
+        let two_sqrt_a_alpha = 2.0 * a.sqrt() * alpha;
+        let b0 = a * ((a + 1.0) - (a - 1.0) * cos_w0 + two_sqrt_a_alpha);
+        let b1 = 2.0 * a * ((a - 1.0) - (a + 1.0) * cos_w0);
+        let b2 = a * ((a + 1.0) - (a - 1.0) * cos_w0 - two_sqrt_a_alpha);
+        let a0 = (a + 1.0) + (a - 1.0) * cos_w0 + two_sqrt_a_alpha;
+        let a1 = -2.0 * ((a - 1.0) + (a + 1.0) * cos_w0);
+        let a2 = (a + 1.0) + (a - 1.0) * cos_w0 - two_sqrt_a_alpha;
+        Self {
+            b0: b0 / a0,
+            b1: b1 / a0,
+            b2: b2 / a0,
+            a1: a1 / a0,
+            a2: a2 / a0,
+        }
+    }
+
+    fn high_shelf(sample_rate: f32, freq: f32, gain_db: f32) -> Self {
+        if gain_db.abs() < 0.05 || freq >= sample_rate * 0.48 {
+            return Self {
+                b0: 1.0,
+                b1: 0.0,
+                b2: 0.0,
+                a1: 0.0,
+                a2: 0.0,
+            };
+        }
+        let a = 10.0f32.powf(gain_db / 40.0);
+        let w0 = 2.0 * PI * freq / sample_rate;
+        let cos_w0 = w0.cos();
+        let sin_w0 = w0.sin();
+        let alpha = sin_w0 / 2.0 * 2.0f32.sqrt();
+        let two_sqrt_a_alpha = 2.0 * a.sqrt() * alpha;
+        let b0 = a * ((a + 1.0) + (a - 1.0) * cos_w0 + two_sqrt_a_alpha);
+        let b1 = -2.0 * a * ((a - 1.0) + (a + 1.0) * cos_w0);
+        let b2 = a * ((a + 1.0) + (a - 1.0) * cos_w0 - two_sqrt_a_alpha);
+        let a0 = (a + 1.0) - (a - 1.0) * cos_w0 + two_sqrt_a_alpha;
+        let a1 = 2.0 * ((a - 1.0) - (a + 1.0) * cos_w0);
+        let a2 = (a + 1.0) - (a - 1.0) * cos_w0 - two_sqrt_a_alpha;
+        Self {
+            b0: b0 / a0,
+            b1: b1 / a0,
+            b2: b2 / a0,
+            a1: a1 / a0,
+            a2: a2 / a0,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Default)]
@@ -147,16 +209,21 @@ where
     }
 
     fn compute_coeffs(sr: f32, eq: &EqualizerState) -> ([BiquadCoeffs; 5], f32) {
-        let mut out = [BiquadCoeffs::peaking(sr, 60.0, 0.85, 0.0); 5];
+        let mut out = [BiquadCoeffs::peaking(sr, 60.0, 0.9, 0.0); 5];
         let mut max_boost = 0.0f32;
+        const Q_VALUES: [f32; 5] = [0.707, 0.9, 1.0, 0.9, 0.707];
         for i in 0..5 {
-            let gain = if eq.enabled { eq.bands[i] } else { 0.0 };
+            let gain = if eq.enabled { eq.bands[i].clamp(-12.0, 12.0) } else { 0.0 };
             if gain > max_boost {
                 max_boost = gain;
             }
-            out[i] = BiquadCoeffs::peaking(sr, BAND_FREQS[i], 0.85, gain);
+            out[i] = match i {
+                0 => BiquadCoeffs::low_shelf(sr, BAND_FREQS[0], gain),
+                4 => BiquadCoeffs::high_shelf(sr, BAND_FREQS[4], gain),
+                _ => BiquadCoeffs::peaking(sr, BAND_FREQS[i], Q_VALUES[i], gain),
+            };
         }
-        let preamp = 10.0f32.powf((-max_boost * 0.55) / 20.0);
+        let preamp = 10.0f32.powf((-max_boost * 0.65) / 20.0);
         (out, preamp)
     }
 }

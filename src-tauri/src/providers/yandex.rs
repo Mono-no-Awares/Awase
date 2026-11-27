@@ -16,24 +16,32 @@ struct WaveSession {
 
 static WAVE_SESSION: Mutex<Option<WaveSession>> = Mutex::new(None);
 
-pub fn load_wave_seen(ids: Vec<String>) {
+pub fn load_wave_seen(ids: Vec<String>, last_id: Option<String>) {
     let mut guard = WAVE_SESSION.lock();
     let sess = guard.get_or_insert_with(|| WaveSession {
         batch_id: None,
         last_track_id: None,
         seen_ids: HashSet::new(),
     });
+    if sess.last_track_id.is_none() && last_id.is_some() {
+        sess.last_track_id = last_id;
+    }
     for id in ids {
         sess.seen_ids.insert(id);
     }
 }
 
-pub fn dump_wave_seen() -> Vec<String> {
+pub fn dump_wave_seen() -> (Vec<String>, Option<String>) {
     let guard = WAVE_SESSION.lock();
     guard
         .as_ref()
-        .map(|s| s.seen_ids.iter().take(800).cloned().collect())
-        .unwrap_or_default()
+        .map(|s| {
+            (
+                s.seen_ids.iter().take(800).cloned().collect(),
+                s.last_track_id.clone(),
+            )
+        })
+        .unwrap_or_else(|| (Vec::new(), None))
 }
 
 pub async fn set_track_like(
@@ -390,23 +398,32 @@ pub async fn fetch_my_wave(
 
     let mut fresh = filter_unseen(&parsed);
 
-    if fresh.is_empty() && !seed_ids.is_empty() {
+    if fresh.is_empty() {
         if let Some(first) = parsed.first() {
             send_wave_feedback(client, token, "skip", Some(&first.external_id), Some(1.0)).await;
         }
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|d| d.subsec_nanos() as usize)
-            .unwrap_or(0);
-        for attempt in 0..3.min(seed_ids.len()) {
-            let pick_idx = (nanos + attempt * 7) % seed_ids.len();
-            let seed_station = format!("track:{}", seed_ids[pick_idx]);
-            if let Ok((_, alt_parsed)) = fetch_rotor_station(client, token, &seed_station, None).await {
-                let alt_fresh = filter_unseen(&alt_parsed);
-                if !alt_fresh.is_empty() {
-                    parsed = alt_parsed;
-                    fresh = alt_fresh;
-                    break;
+        let fallback_seeds: Vec<String> = if !seed_ids.is_empty() {
+            seed_ids.to_vec()
+        } else {
+            parsed.iter().map(|t| t.external_id.clone()).collect()
+        };
+        if !fallback_seeds.is_empty() {
+            let nanos = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|d| d.subsec_nanos() as usize)
+                .unwrap_or(0);
+            for attempt in 0..3.min(fallback_seeds.len()) {
+                let pick_idx = (nanos + attempt * 7) % fallback_seeds.len();
+                let seed_station = format!("track:{}", fallback_seeds[pick_idx]);
+                if let Ok((_, alt_parsed)) =
+                    fetch_rotor_station(client, token, &seed_station, None).await
+                {
+                    let alt_fresh = filter_unseen(&alt_parsed);
+                    if !alt_fresh.is_empty() {
+                        parsed = alt_parsed;
+                        fresh = alt_fresh;
+                        break;
+                    }
                 }
             }
         }

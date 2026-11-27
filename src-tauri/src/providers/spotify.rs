@@ -90,18 +90,49 @@ pub async fn search_tracks(client: &Client, token: &str, query: &str) -> Result<
     Ok(items.iter().filter_map(|v| parse_track(v, false)).collect())
 }
 
-pub async fn sync_library(client: &Client, token: &str) -> Result<(Vec<Track>, Vec<Playlist>), String> {
+pub async fn sync_library(
+    client: &Client,
+    token: &str,
+    client_token: Option<&str>,
+) -> Result<(Vec<Track>, Vec<Playlist>), String> {
     let mut tracks = Vec::new();
     let mut offset = 0usize;
 
-    for _ in 0..10 {
-        let saved_resp = client
+    for _ in 0..20 {
+        let mut req = client
             .get(format!("{}/me/tracks", SPOTIFY_API))
             .bearer_auth(token)
-            .query(&[("limit", "50"), ("offset", &offset.to_string())])
-            .send()
-            .await
-            .map_err(|e| e.to_string())?;
+            .header("Origin", "https://open.spotify.com")
+            .header("Referer", "https://open.spotify.com/")
+            .header(
+                "User-Agent",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+            )
+            .query(&[("limit", "50"), ("offset", &offset.to_string())]);
+        if let Some(ct) = client_token.filter(|s| !s.is_empty()) {
+            req = req.header("client-token", ct);
+        }
+        let mut saved_resp = req.send().await.map_err(|e| e.to_string())?;
+        if saved_resp.status().as_u16() == 429 {
+            let wait_s = saved_resp
+                .headers()
+                .get("retry-after")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(2)
+                .min(5);
+            tokio::time::sleep(std::time::Duration::from_secs(wait_s)).await;
+            let mut retry = client
+                .get(format!("{}/me/tracks", SPOTIFY_API))
+                .bearer_auth(token)
+                .header("Origin", "https://open.spotify.com")
+                .header("Referer", "https://open.spotify.com/")
+                .query(&[("limit", "50"), ("offset", &offset.to_string())]);
+            if let Some(ct) = client_token.filter(|s| !s.is_empty()) {
+                retry = retry.header("client-token", ct);
+            }
+            saved_resp = retry.send().await.map_err(|e| e.to_string())?;
+        }
 
         if !saved_resp.status().is_success() {
             if offset == 0 {
@@ -131,18 +162,22 @@ pub async fn sync_library(client: &Client, token: &str) -> Result<(Vec<Track>, V
             break;
         }
         offset += 50;
+        tokio::time::sleep(std::time::Duration::from_millis(120)).await;
     }
 
     let mut playlists = Vec::new();
     let mut pl_offset = 0usize;
     loop {
-        let pl_resp = client
+        let mut pl_req = client
             .get(format!("{}/me/playlists", SPOTIFY_API))
             .bearer_auth(token)
-            .query(&[("limit", "50"), ("offset", &pl_offset.to_string())])
-            .send()
-            .await
-            .map_err(|e| e.to_string())?;
+            .header("Origin", "https://open.spotify.com")
+            .header("Referer", "https://open.spotify.com/")
+            .query(&[("limit", "50"), ("offset", &pl_offset.to_string())]);
+        if let Some(ct) = client_token.filter(|s| !s.is_empty()) {
+            pl_req = pl_req.header("client-token", ct);
+        }
+        let pl_resp = pl_req.send().await.map_err(|e| e.to_string())?;
         if !pl_resp.status().is_success() {
             break;
         }
@@ -250,7 +285,7 @@ fn parse_track(v: &Value, liked: bool) -> Option<Track> {
     })
 }
 
-fn extract_spotify_playlist_id(input: &str) -> Option<String> {
+pub fn extract_spotify_playlist_id(input: &str) -> Option<String> {
     let trimmed = input.trim();
     if let Some(rest) = trimmed.strip_prefix("spotify:playlist:") {
         let id = rest.trim();
@@ -270,6 +305,8 @@ fn extract_spotify_playlist_id(input: &str) -> Option<String> {
 async fn fetch_web_anon_token(client: &Client) -> Option<String> {
     let resp = client
         .get("https://open.spotify.com/get_access_token?reason=transport&productType=web_player")
+        .header("Referer", "https://open.spotify.com/")
+        .header("Origin", "https://open.spotify.com")
         .header(
             "User-Agent",
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
@@ -286,18 +323,20 @@ async fn fetch_web_anon_token(client: &Client) -> Option<String> {
         .map(str::to_string)
 }
 
-async fn import_public_playlist_via_api(
+pub async fn import_public_playlist_via_api(
     client: &Client,
     pid: &str,
     token: &str,
+    client_token: Option<&str>,
 ) -> Option<(Playlist, Vec<Track>)> {
-    let meta_resp = client
+    let mut meta_req = client
         .get(format!("{}/playlists/{}", SPOTIFY_API, pid))
         .bearer_auth(token)
-        .query(&[("fields", "name,images,tracks(total)")])
-        .send()
-        .await
-        .ok()?;
+        .query(&[("fields", "name,images,tracks(total)")]);
+    if let Some(ct) = client_token.filter(|s| !s.is_empty()) {
+        meta_req = meta_req.header("client-token", ct);
+    }
+    let meta_resp = meta_req.send().await.ok()?;
     if !meta_resp.status().is_success() {
         return None;
     }
@@ -318,13 +357,40 @@ async fn import_public_playlist_via_api(
     let mut tracks = Vec::new();
     let mut offset = 0usize;
     loop {
-        let resp = client
+        let mut req = client
             .get(format!("{}/playlists/{}/tracks", SPOTIFY_API, pid))
             .bearer_auth(token)
-            .query(&[("limit", "100"), ("offset", &offset.to_string())])
-            .send()
-            .await
-            .ok()?;
+            .header("Origin", "https://open.spotify.com")
+            .header("Referer", "https://open.spotify.com/")
+            .header(
+                "User-Agent",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+            )
+            .query(&[("limit", "100"), ("offset", &offset.to_string())]);
+        if let Some(ct) = client_token.filter(|s| !s.is_empty()) {
+            req = req.header("client-token", ct);
+        }
+        let mut resp = req.send().await.ok()?;
+        if resp.status().as_u16() == 429 {
+            let wait_s = resp
+                .headers()
+                .get("retry-after")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(2)
+                .min(5);
+            tokio::time::sleep(std::time::Duration::from_secs(wait_s)).await;
+            let mut retry = client
+                .get(format!("{}/playlists/{}/tracks", SPOTIFY_API, pid))
+                .bearer_auth(token)
+                .header("Origin", "https://open.spotify.com")
+                .header("Referer", "https://open.spotify.com/")
+                .query(&[("limit", "100"), ("offset", &offset.to_string())]);
+            if let Some(ct) = client_token.filter(|s| !s.is_empty()) {
+                retry = retry.header("client-token", ct);
+            }
+            resp = retry.send().await.ok()?;
+        }
         if !resp.status().is_success() {
             break;
         }
@@ -346,6 +412,7 @@ async fn import_public_playlist_via_api(
             break;
         }
         offset += 100;
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     }
 
     if tracks.is_empty() {
@@ -365,12 +432,19 @@ async fn import_public_playlist_via_api(
 pub async fn import_public_playlist(
     client: &Client,
     url_or_id: &str,
+    user_token: Option<&str>,
 ) -> Result<(Playlist, Vec<Track>), String> {
     let pid = extract_spotify_playlist_id(url_or_id)
         .ok_or_else(|| "Invalid Spotify playlist link (expected open.spotify.com/playlist/...)".to_string())?;
 
+    if let Some(tok) = user_token.filter(|t| !t.trim().is_empty()) {
+        if let Some(full) = import_public_playlist_via_api(client, &pid, tok, None).await {
+            return Ok(full);
+        }
+    }
+
     if let Some(anon_tok) = fetch_web_anon_token(client).await {
-        if let Some(full) = import_public_playlist_via_api(client, &pid, &anon_tok).await {
+        if let Some(full) = import_public_playlist_via_api(client, &pid, &anon_tok, None).await {
             return Ok(full);
         }
     }

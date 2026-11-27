@@ -231,7 +231,7 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
               type="button"
               onClick={onShareCard}
               title={language === "ru" ? "Скопировать карточку трека" : "Copy share card"}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.07] hover:bg-white/[0.14] border border-white/[0.1] backdrop-blur-xl text-[11px] font-medium text-white/85 hover:text-white transition-all active:scale-95 cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/45 hover:bg-white/[0.1] border border-white/[0.08] backdrop-blur-xl text-[11px] font-medium text-slate-200 hover:text-white transition-all duration-200 active:scale-95 cursor-pointer"
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="3" width="18" height="18" rx="4" />

@@ -96,13 +96,13 @@ export const TitleBar: React.FC<TitleBarProps> = ({
         <div
           className={`relative flex items-center overflow-hidden rounded-full border transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
             expanded
-              ? "w-72 sm:w-96 h-9 bg-[#13141A] border-white/[0.18] shadow-[0_6px_24px_rgba(0,0,0,0.45)]"
-              : "w-56 sm:w-64 h-8 bg-white/[0.04] hover:bg-white/[0.08] border-white/[0.09]"
+              ? "w-72 sm:w-96 h-8 bg-white/[0.07] border-white/[0.16] shadow-[0_4px_20px_rgba(0,0,0,0.28)]"
+              : "w-56 sm:w-64 h-8 bg-white/[0.03] hover:bg-white/[0.06] border-white/[0.07]"
           }`}
         >
           {expanded ? (
             <>
-              <span className="w-8 h-8 shrink-0 flex items-center justify-center text-slate-300 pointer-events-none">
+              <span className="w-8 h-8 shrink-0 flex items-center justify-center text-slate-400 pointer-events-none">
                 <IconSearch size={14} />
               </span>
               <input
@@ -114,7 +114,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({
                   if (!searchQuery.trim()) setSearchOpen(false);
                 }}
                 placeholder={t.searchPlaceholder}
-                className="flex-1 h-9 bg-transparent pr-8 text-xs text-white placeholder:text-slate-400 focus:outline-none"
+                className="flex-1 h-8 bg-transparent pr-8 text-xs text-white placeholder:text-slate-400/75 focus:outline-none"
               />
               <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
                 {isSearching ? (
@@ -159,10 +159,10 @@ export const TitleBar: React.FC<TitleBarProps> = ({
           onClick={onToggleGamingMode}
           title={t.gamingModeDesc}
           aria-label={t.gamingModeLabel}
-          className={`h-8 px-2.5 mr-1 flex items-center gap-1.5 rounded-lg border text-[11px] font-medium transition-all active:scale-95 cursor-pointer ${
+          className={`h-7 px-2.5 mr-1 flex items-center gap-1.5 rounded-full border text-[11px] font-medium transition-all duration-200 active:scale-95 cursor-pointer ${
             gamingMode
-              ? "bg-emerald-500/15 border-emerald-400/40 text-emerald-300"
-              : "bg-white/[0.04] border-white/[0.08] text-slate-300 hover:text-white hover:bg-white/[0.09]"
+              ? "bg-white border-white text-[#050507] shadow-[0_0_16px_rgba(255,255,255,0.28)]"
+              : "bg-transparent border-transparent text-slate-400 hover:text-white hover:bg-white/[0.08]"
           }`}
         >
           <IconBolt size={13} />

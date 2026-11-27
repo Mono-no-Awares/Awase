@@ -69,6 +69,7 @@ export const api = {
     }),
   openSpotifyLoginBrowser: (clientId: string) =>
     invoke<void>("open_spotify_login_browser", { clientId }),
+  openSpotifyWebLogin: () => invoke<void>("open_spotify_web_login"),
   syncSpotifyLibrary: () => invoke<number>("sync_spotify_library"),
   importSpotifyPlaylistUrl: (url: string) =>
     invoke<number>("import_spotify_playlist_url", { url }),

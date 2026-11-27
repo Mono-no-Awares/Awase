@@ -13,7 +13,7 @@ const FALLBACK_CLIENT_IDS: &[&str] = &[
 ];
 const RANGE_CHUNK_SIZE: usize = 14336;
 
-static RU_BYPASS_MODE: AtomicU8 = AtomicU8::new(0);
+static RU_BYPASS_MODE: AtomicU8 = AtomicU8::new(1);
 static RU_TRIPPED: AtomicBool = AtomicBool::new(false);
 
 pub fn set_ru_tripped(tripped: bool) {

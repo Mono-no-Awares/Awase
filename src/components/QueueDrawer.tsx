@@ -38,9 +38,11 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({
   }, [confirmClear]);
 
   const currentItem = currentIndex >= 0 && currentIndex < queue.length ? queue[currentIndex] : null;
-  const upcomingItems = queue
-    .map((track, idx) => ({ track, idx }))
-    .filter(({ idx }) => idx !== currentIndex);
+  const indexed = queue.map((track, idx) => ({ track, idx }));
+  const upcomingItems =
+    currentIndex >= 0 && currentIndex < queue.length
+      ? [...indexed.slice(currentIndex + 1), ...indexed.slice(0, currentIndex)]
+      : indexed;
 
   return (
     <aside

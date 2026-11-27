@@ -91,7 +91,22 @@ export const PlayerDock: React.FC<PlayerDockProps> = ({
     : SOURCE_META.local;
   const duration = telemetry.durationMs || currentTrack?.durationMs || 0;
   const [scrubMs, setScrubMs] = useState<number | null>(null);
+  const [isScrubbing, setIsScrubbing] = useState(false);
+  const seekHoldRef = React.useRef<{ target: number; until: number } | null>(null);
   const [dockCover, setDockCover] = useState<string | null>(currentTrack?.coverUrl ?? null);
+
+  React.useEffect(() => {
+    const hold = seekHoldRef.current;
+    if (!hold) return;
+    if (
+      performance.now() >= hold.until ||
+      Math.abs(telemetry.positionMs - hold.target) < 1100
+    ) {
+      seekHoldRef.current = null;
+      if (!isScrubbing) setScrubMs(null);
+    }
+  }, [telemetry.positionMs, isScrubbing]);
+
   const displayPos = scrubMs ?? telemetry.positionMs;
   const progress = duration > 0 ? Math.min(100, (displayPos / duration) * 100) : 0;
 
@@ -113,7 +128,9 @@ export const PlayerDock: React.FC<PlayerDockProps> = ({
   }, [currentTrack?.id, currentTrack?.coverUrl]);
 
   const commitSeek = (val: number) => {
-    setScrubMs(null);
+    setIsScrubbing(false);
+    setScrubMs(val);
+    seekHoldRef.current = { target: val, until: performance.now() + 650 };
     onSeek(val);
   };
 
@@ -252,18 +269,34 @@ export const PlayerDock: React.FC<PlayerDockProps> = ({
             {formatDuration(displayPos)}
           </span>
           <div className="relative flex-1 py-2 flex items-center">
+            <div className="absolute inset-x-0 h-1.5 rounded-full bg-white/[0.16] overflow-hidden pointer-events-none">
+              <div
+                className={`h-full rounded-full ${
+                  isScrubbing ? "transition-none" : "transition-[width] duration-150 ease-out"
+                }`}
+                style={{
+                  width: `${progress}%`,
+                  backgroundColor: coverPalette.primary,
+                }}
+              />
+            </div>
             <input
               type="range"
               min={0}
               max={Math.max(1, duration)}
               value={Math.min(displayPos, Math.max(1, duration))}
-              onChange={(e) => setScrubMs(Number(e.target.value))}
+              onPointerDown={() => setIsScrubbing(true)}
+              onChange={(e) => {
+                setIsScrubbing(true);
+                setScrubMs(Number(e.target.value));
+              }}
+              onPointerUp={(e) => commitSeek(Number((e.target as HTMLInputElement).value))}
               onMouseUp={(e) => commitSeek(Number((e.target as HTMLInputElement).value))}
               onTouchEnd={(e) => commitSeek(Number((e.target as HTMLInputElement).value))}
               aria-label="Seek timeline"
-              className="awase-range w-full"
+              className="awase-range relative z-10 w-full bg-transparent"
               style={{
-                background: `linear-gradient(to right, ${coverPalette.primary} ${progress}%, rgba(255,255,255,0.22) ${progress}%)`,
+                background: "transparent",
                 height: "6px",
                 borderRadius: "9999px",
               }}

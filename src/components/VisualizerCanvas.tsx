@@ -64,8 +64,6 @@ export const VisualizerCanvas: React.FC<VisualizerCanvasProps> = ({
     const canvas = canvasRef.current;
     if (!canvas) return;
     if (gamingMode) {
-      canvas.width = 0;
-      canvas.height = 0;
       return;
     }
     const ctx = canvas.getContext("2d");
@@ -345,7 +343,13 @@ export const VisualizerCanvas: React.FC<VisualizerCanvasProps> = ({
     };
   }, [gamingMode]);
 
-  return <canvas ref={canvasRef} className={`w-full h-full block ${className}`} />;
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{ display: gamingMode ? "none" : "block" }}
+      className={`w-full h-full block ${className}`}
+    />
+  );
 };
 
 export const MiniSpectrumStrip: React.FC<{
@@ -363,8 +367,6 @@ export const MiniSpectrumStrip: React.FC<{
     const canvas = canvasRef.current;
     if (!canvas) return;
     if (gamingMode) {
-      canvas.width = 0;
-      canvas.height = 0;
       return;
     }
     const ctx = canvas.getContext("2d");
@@ -452,5 +454,11 @@ export const MiniSpectrumStrip: React.FC<{
     };
   }, [gamingMode]);
 
-  return <canvas ref={canvasRef} className="w-full h-full block" />;
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{ display: gamingMode ? "none" : "block" }}
+      className="w-full h-full block"
+    />
+  );
 };

@@ -35,15 +35,11 @@ html[data-motion="silk"] {
   --awase-dur: 400ms;
 }
 
-html[data-gaming="true"] {
-  --awase-dur: 0ms;
-}
-
-html[data-gaming="true"] .awase-glass,
-html[data-gaming="true"] .awase-card,
-html[data-gaming="true"] * {
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
+html[data-gaming="true"] .awase-view-enter,
+html[data-gaming="true"] .awase-menu-pop {
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
 }
 
 * {

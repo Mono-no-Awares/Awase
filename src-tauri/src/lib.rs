@@ -6,6 +6,7 @@ mod local_scanner;
 mod lyrics;
 mod models;
 mod providers;
+mod spotify_player;
 mod zapret;
 
 use std::sync::atomic::AtomicU64;
@@ -47,7 +48,7 @@ fn ensure_single_instance() {
             }
             std::process::exit(0);
         }
-        std::mem::forget(handle);
+        let _ = handle;
     }
 }
 
@@ -222,6 +223,7 @@ pub fn run() {
             commands::sync_yandex_library,
             commands::connect_spotify_credentials,
             commands::open_spotify_login_browser,
+            commands::open_spotify_web_login,
             commands::sync_spotify_library,
             commands::import_spotify_playlist_url,
             commands::import_spotify_file,

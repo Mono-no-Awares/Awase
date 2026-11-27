@@ -241,7 +241,7 @@ export const TRANSLATIONS: Record<
     spotifyImportUrlBtn: "Импорт плейлиста",
     spotifyImportFileBtn: "Импорт CSV / JSON (лайки)",
     spotifyPremiumNote:
-      "В 2025–2026 Spotify закрыл Web API (ошибка 403) для новых приложений без Premium. Без Premium используй импорт публичного плейлиста по ссылке выше или файл CSV/JSON (из Exportify / настроек приватности Spotify) — Awase сам подхватит полные треки из Яндекс/SoundCloud/файлов.",
+      "Воспроизведение Spotify работает напрямую через официальный Web Playback SDK и требует активной подписки Spotify Premium.",
     scHint:
       "1) Нажми «Войти в SoundCloud» (если профиль приватный) или вставь свой ник/ссылку (например soundcloud.com/yourname) -> 2) Нажми «Привязать профиль» -> 3) Нажми «Загрузить лайки».",
     openSoundCloud: "Войти в SoundCloud",
@@ -368,7 +368,7 @@ export const TRANSLATIONS: Record<
     spotifyImportUrlBtn: "Import Playlist",
     spotifyImportFileBtn: "Import CSV / JSON (Likes)",
     spotifyPremiumNote:
-      "Spotify now returns 403 Forbidden on Web API Dev apps without Premium. Without Premium, paste any public playlist link above or import a CSV/JSON export (Exportify / Spotify Privacy Data) — Awase will play full tracks via your Yandex/SoundCloud/Local sources.",
+      "Spotify playback runs directly via the official Web Playback SDK and requires an active Spotify Premium subscription.",
     scHint:
       "1) Click Sign in to SoundCloud (or enter your handle/URL like soundcloud.com/yourname) -> 2) Click Link Profile -> 3) Click Import Likes.",
     openSoundCloud: "Sign in to SoundCloud",

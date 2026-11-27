@@ -129,6 +129,14 @@ export const App: React.FC = () => {
 
   const [queue, setQueue] = useState<Track[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
+  const queueRef = useRef<Track[]>([]);
+  const currentIndexRef = useRef<number>(-1);
+  useEffect(() => {
+    queueRef.current = queue;
+  }, [queue]);
+  useEffect(() => {
+    currentIndexRef.current = currentIndex;
+  }, [currentIndex]);
   const [shuffle, setShuffle] = useState(false);
   const [repeat, setRepeat] = useState<RepeatMode>("off");
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -387,21 +395,6 @@ export const App: React.FC = () => {
           }
           return;
         }
-        const isSpotifyMissing =
-          track.source === "spotify" && msg.includes("[SPOTIFY_NOT_FOUND]");
-        if (isSpotifyMissing) {
-          notify(
-            preferences.language === "ru"
-              ? "Точная копия трека Spotify не найдена"
-              : "Exact match for Spotify track not found",
-            "error"
-          );
-          if (queue.length > 1 && consecSkipRef.current < 4) {
-            consecSkipRef.current += 1;
-            window.setTimeout(() => handleNextRef.current(), 450);
-          }
-          return;
-        }
         const isYandexUnavailable =
           track.source === "yandex" &&
           (msg.includes("HTTP 404") ||
@@ -453,13 +446,14 @@ export const App: React.FC = () => {
   );
 
   const handleNext = useCallback(async () => {
-    if (queue.length === 0) return;
-    if (repeat === "one" && currentIndex >= 0) {
-      await startTrackPlayback(queue[currentIndex]);
+    let workingQueue = queueRef.current;
+    const curIdx = currentIndexRef.current;
+    if (workingQueue.length === 0) return;
+    if (repeat === "one" && curIdx >= 0 && curIdx < workingQueue.length) {
+      await startTrackPlayback(workingQueue[curIdx]);
       return;
     }
-    let nextIdx = currentIndex + 1;
-    let workingQueue = queue;
+    let nextIdx = curIdx + 1;
 
     const filterFreshWave = (items: Track[], existing: Track[]) => {
       const ids = new Set(existing.map((t) => t.id));
@@ -482,6 +476,7 @@ export const App: React.FC = () => {
           const fresh = filterFreshWave(more, workingQueue);
           if (fresh.length > 0) {
             workingQueue = [...workingQueue, ...fresh];
+            queueRef.current = workingQueue;
             setQueue(workingQueue);
           } else {
             return;
@@ -517,12 +512,13 @@ export const App: React.FC = () => {
         waveSeenIdsRef.current.clear();
       }
     }
+    currentIndexRef.current = nextIdx;
     setCurrentIndex(nextIdx);
     if (nextIdx + 1 < workingQueue.length) {
       api.prefetchTrack(workingQueue[nextIdx + 1]).catch(() => {});
     }
     void startTrackPlayback(chosen);
-  }, [queue, currentIndex, repeat, shuffle, activeWave, waveLoading, startTrackPlayback]);
+  }, [repeat, shuffle, activeWave, waveLoading, startTrackPlayback]);
 
   useEffect(() => {
     handleNextRef.current = () => {
@@ -1108,21 +1104,9 @@ export const App: React.FC = () => {
                   setBusySource(null);
                 }
               }}
-              onOpenSpotifyLogin={(clientId) =>
-                api.openSpotifyLoginBrowser(clientId).catch((e) => notify(String(e), "error"))
+              onOpenSpotifyWebLogin={() =>
+                api.openSpotifyWebLogin().catch((e) => notify(String(e), "error"))
               }
-              onConnectSpotify={async (clientId, token) => {
-                setBusySource("spotify");
-                try {
-                  await api.connectSpotifyCredentials(clientId, token);
-                  notify("Spotify updated");
-                  await refreshLibrary();
-                } catch (e) {
-                  notify(String(e), "error");
-                } finally {
-                  setBusySource(null);
-                }
-              }}
               onSyncSpotify={async () => {
                 setBusySource("spotify");
                 try {

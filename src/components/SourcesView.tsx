@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import type {
   AppLanguage,
   AppPreferences,
@@ -20,6 +21,7 @@ import { TRANSLATIONS } from "../lib/i18n";
 import { SOURCE_META, SOURCE_ORDER } from "../lib/sources";
 import { CustomSelect } from "./CustomSelect";
 import { EqFader } from "./EqFader";
+import { EQ_PRESETS } from "./EqualizerPopover";
 import {
   AwaseLogo,
   IconBolt,
@@ -48,8 +50,7 @@ interface SourcesViewProps {
   onOpenYandexLogin: () => void;
   onConnectYandexToken: (token: string) => void;
   onSyncYandex: () => void;
-  onOpenSpotifyLogin: (clientId: string) => void;
-  onConnectSpotify: (clientId: string, token?: string) => void;
+  onOpenSpotifyWebLogin: () => void;
   onSyncSpotify: () => void;
   onImportSpotifyUrl: (url: string) => void;
   onImportSpotifyFile: () => void;
@@ -81,8 +82,7 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
   onOpenYandexLogin,
   onConnectYandexToken,
   onSyncYandex,
-  onOpenSpotifyLogin,
-  onConnectSpotify,
+  onOpenSpotifyWebLogin,
   onSyncSpotify,
   onImportSpotifyUrl,
   onImportSpotifyFile,
@@ -99,15 +99,13 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
   const [expanded, setExpanded] = useState<SourceKind | null>(null);
   const [yandexToken, setYandexToken] = useState("");
   const [yandexOpened, setYandexOpened] = useState(false);
-  const [spotifyClientId, setSpotifyClientId] = useState("");
-  const [spotifyToken, setSpotifyToken] = useState("");
   const [spotifyPlaylistInput, setSpotifyPlaylistInput] = useState("");
   const [scToken, setScToken] = useState("");
   const [scHandle, setScHandle] = useState("");
   const [zapretStatus, setZapretStatus] = useState<ZapretStatus | null>(null);
   const [zapretBusy, setZapretBusy] = useState(false);
   const [zapretErr, setZapretErr] = useState<string | null>(null);
-  const [ruBypass, setRuBypass] = useState<[number, boolean]>([0, false]);
+  const [ruBypass, setRuBypass] = useState<[number, boolean]>([1, false]);
 
   useEffect(() => {
     api.getZapretStatus().then(setZapretStatus).catch(() => {});
@@ -132,7 +130,12 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
 
   useEffect(() => {
     api.getCacheStats().then(setCacheStats).catch(() => {});
+    api.checkForUpdates().then(setUpdateInfo).catch(() => {});
   }, []);
+
+  const [settingsTab, setSettingsTab] = useState<
+    "services" | "audio" | "appearance" | "system"
+  >("services");
 
   const handleClearCache = async () => {
     setCacheClearing(true);
@@ -221,13 +224,40 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
   }));
 
   return (
-    <div className="space-y-7 pb-10 max-w-4xl mx-auto awase-view-enter">
-      <div>
-        <h1 className="font-display text-2xl font-bold text-white">{t.connectionsHeader}</h1>
-        <p className="text-xs text-slate-300 mt-1">{t.connectionsSub}</p>
+    <div className="space-y-6 pb-10 max-w-4xl mx-auto awase-view-enter">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="font-display text-2xl font-bold text-white">{t.connectionsHeader}</h1>
+          <p className="text-xs text-slate-300 mt-1">{t.connectionsSub}</p>
+        </div>
+
+        <div className="inline-flex flex-wrap items-center p-1 rounded-2xl bg-white/[0.05] border border-white/[0.1] gap-1">
+          {(
+            [
+              { id: "services" as const, label: preferences.language === "ru" ? "Сервисы" : "Services" },
+              { id: "audio" as const, label: preferences.language === "ru" ? "Звук и EQ" : "Audio & EQ" },
+              { id: "appearance" as const, label: preferences.language === "ru" ? "Оформление" : "Appearance" },
+              { id: "system" as const, label: preferences.language === "ru" ? "Система" : "System" },
+            ]
+          ).map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setSettingsTab(tab.id)}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-medium transition-all duration-200 cursor-pointer ${
+                settingsTab === tab.id
+                  ? "bg-white text-[#07080C] shadow"
+                  : "text-slate-300 hover:text-white"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="space-y-2.5">
+      {settingsTab === "services" && (
+        <div className="space-y-2.5 awase-view-enter">
         {SOURCE_ORDER.map((src) => {
           const meta = SOURCE_META[src];
           const st = getStatus(src);
@@ -418,6 +448,52 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
 
                     {src === "spotify" && (
                       <div className="space-y-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-mintsignal/10 border border-mintsignal/25">
+                          <div className="min-w-0">
+                            <div className="text-xs font-semibold text-white">
+                              {preferences.language === "ru"
+                                ? "Вход в аккаунт Spotify Premium"
+                                : "Spotify Premium Account"}
+                            </div>
+                            <div className="text-[11px] text-slate-300">
+                              {preferences.language === "ru"
+                                ? "Официальный вход для воспроизведения и синхронизации плейлистов/лайков"
+                                : "Official login for Premium playback & syncing playlists/likes"}
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={onOpenSpotifyWebLogin}
+                              className="px-4 py-2 rounded-xl bg-mintsignal text-[#050507] text-xs font-semibold hover:brightness-105 transition-all active:scale-95 cursor-pointer"
+                            >
+                              {preferences.language === "ru" ? "Войти в Spotify" : "Login with Spotify"}
+                            </button>
+                            {isConnected && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={onSyncSpotify}
+                                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/[0.08] hover:bg-white/[0.14] border border-white/[0.1] text-xs font-medium text-white transition-all active:scale-95 cursor-pointer"
+                                >
+                                  <IconRefresh
+                                    size={14}
+                                    className={busySource === "spotify" ? "animate-spin" : ""}
+                                  />
+                                  <span>{t.syncLibrary}</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => onDisconnectSource("spotify")}
+                                  className="px-3 py-2 rounded-xl text-xs text-rose-400 hover:bg-rose-500/12 transition-colors cursor-pointer"
+                                >
+                                  {t.disconnect}
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
                         <div className="flex flex-wrap gap-2">
                           <input
                             type="text"
@@ -450,95 +526,6 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
                         <p className="text-[11px] text-slate-200 bg-white/[0.05] border border-white/[0.1] rounded-xl px-3.5 py-2.5 leading-relaxed">
                           {t.spotifyPremiumNote}
                         </p>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          <input
-                            type="text"
-                            value={spotifyClientId}
-                            onChange={(e) => setSpotifyClientId(e.target.value)}
-                            placeholder={t.spotifyClientId}
-                            className="px-3.5 py-2 rounded-xl bg-black/40 border border-white/[0.1] text-xs text-white placeholder:text-slate-400 focus:outline-none focus:border-mintsignal/50"
-                          />
-                          <div className="flex gap-1.5">
-                            <input
-                              type="password"
-                              value={spotifyToken}
-                              onChange={(e) => setSpotifyToken(e.target.value)}
-                              placeholder={t.spotifyToken}
-                              className="flex-1 px-3.5 py-2 rounded-xl bg-black/40 border border-white/[0.1] text-xs text-white placeholder:text-slate-400 focus:outline-none focus:border-mintsignal/50"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => {
-                                navigator.clipboard
-                                  ?.readText()
-                                  .then((txt) => {
-                                    if (txt.trim()) setSpotifyToken(txt.trim());
-                                  })
-                                  .catch(() => {});
-                              }}
-                              className="px-3 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.08] text-xs font-medium text-slate-200 transition-colors cursor-pointer"
-                            >
-                              {t.pasteBtn}
-                            </button>
-                          </div>
-                        </div>
-                        <p className="text-[11px] text-slate-300 bg-white/[0.04] border border-white/[0.07] rounded-xl px-3.5 py-2">
-                          {t.spotifyRedirectHint}{" "}
-                          <span className="text-white font-mono select-all">
-                            http://127.0.0.1:43821/callback
-                          </span>
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() => onOpenSpotifyLogin(spotifyClientId.trim())}
-                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-mintsignal text-[#050507] text-xs font-semibold hover:brightness-105 transition-all active:scale-95 cursor-pointer"
-                          >
-                            <IconLink size={14} />
-                            <span>{t.authorizeBrowser}</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              onOpenExternalUrl("https://developer.spotify.com/dashboard")
-                            }
-                            className="px-3.5 py-2 rounded-full bg-white/[0.08] hover:bg-white/[0.14] border border-white/[0.1] text-xs font-medium text-slate-200 transition-all active:scale-95 cursor-pointer"
-                          >
-                            {t.openDashboard}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              onConnectSpotify(spotifyClientId.trim(), spotifyToken.trim() || undefined)
-                            }
-                            className="px-4 py-2 rounded-full bg-white text-[#050507] hover:bg-white/90 text-xs font-semibold transition-all active:scale-95 cursor-pointer"
-                          >
-                            {t.saveToken}
-                          </button>
-                          {isConnected && (
-                            <>
-                              <button
-                                type="button"
-                                onClick={onSyncSpotify}
-                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white/[0.08] hover:bg-white/[0.14] border border-white/[0.1] text-xs font-medium text-white transition-all active:scale-95 cursor-pointer"
-                              >
-                                <IconRefresh
-                                  size={14}
-                                  className={busySource === "spotify" ? "animate-spin" : ""}
-                                />
-                                <span>{t.syncLibrary}</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => onDisconnectSource("spotify")}
-                                className="px-3 py-2 rounded-full text-xs text-rose-400 hover:bg-rose-500/12 transition-colors cursor-pointer"
-                              >
-                                {t.disconnect}
-                              </button>
-                            </>
-                          )}
-                        </div>
                       </div>
                     )}
 
@@ -617,10 +604,11 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
             </div>
           );
         })}
-      </div>
+        </div>
+      )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="awase-card rounded-2xl p-5 space-y-4">
+      {settingsTab === "appearance" && (
+        <div className="awase-card rounded-2xl p-5 space-y-4 awase-view-enter">
           <h2 className="font-display font-semibold text-base text-white">
             {t.appearanceHeader}
           </h2>
@@ -928,8 +916,18 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
                   />
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
 
-              <div className="pt-2 border-t border-white/[0.08] space-y-2.5">
+      {settingsTab === "system" && (
+        <div className="awase-card rounded-2xl p-5 space-y-4 awase-view-enter">
+          <h2 className="font-display font-semibold text-base text-white">
+            {preferences.language === "ru" ? "Система, сеть и данные" : "System, Network & Data"}
+          </h2>
+          <div className="space-y-3.5">
+            <div className="space-y-2.5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
@@ -1232,16 +1230,17 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setWipeModalOpen(true)}
-                  className="px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-[11px] font-medium text-rose-200 shrink-0 transition-all duration-200 active:scale-95 cursor-pointer"
+                  className="px-3.5 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-xs font-medium text-rose-200 whitespace-nowrap shrink-0 transition-all duration-200 active:scale-95 cursor-pointer"
                 >
-                  {preferences.language === "ru" ? "Удалить..." : "Reset..."}
+                  {preferences.language === "ru" ? "Сбросить данные" : "Reset Data"}
                 </button>
               </div>
             </div>
           </div>
-        </div>
+      )}
 
-        <div className="awase-card rounded-2xl p-5 space-y-4">
+      {settingsTab === "audio" && (
+        <div className="awase-card rounded-2xl p-5 space-y-4 awase-view-enter">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <IconEqualizer size={18} className="text-cyanpulse" />
@@ -1282,6 +1281,28 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
             />
           </div>
 
+          <div className="flex flex-wrap items-center gap-1.5">
+            {EQ_PRESETS.map((preset) => {
+              const active = eqState.bands.every(
+                (v, i) => Math.abs(v - preset.bands[i]) < 0.05
+              );
+              return (
+                <button
+                  key={preset.name}
+                  type="button"
+                  onClick={() => onUpdateEq({ enabled: true, bands: preset.bands })}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all cursor-pointer ${
+                    active
+                      ? "bg-cyanpulse text-[#050507] shadow-sm"
+                      : "bg-white/[0.07] hover:bg-white/[0.15] text-slate-200"
+                  }`}
+                >
+                  {preferences.language === "ru" ? preset.ruName : preset.name}
+                </button>
+              );
+            })}
+          </div>
+
           <div className="grid grid-cols-5 gap-2">
             {EQ_LABELS.map((label, idx) => (
               <EqFader
@@ -1297,14 +1318,17 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
             ))}
           </div>
         </div>
-      </div>
+      )}
 
       <div className="awase-card rounded-2xl p-5 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
           <AwaseLogo size={36} />
           <div>
             <div className="font-display font-semibold text-sm text-white">
-              Awase <span className="text-xs font-normal text-slate-300">v0.1.0</span>
+              Awase{" "}
+              <span className="text-xs font-normal text-slate-300">
+                v{updateInfo?.currentVersion ?? "0.2.4"}
+              </span>
             </div>
             <div className="text-xs text-slate-300 mt-0.5">
               Crafted with care by <span className="text-white font-medium">Mono no Aware</span>
@@ -1322,92 +1346,94 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
         </button>
       </div>
 
-      {wipeModalOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4 awase-view-enter"
-          onClick={() => !wipeBusy && setWipeModalOpen(false)}
-        >
+      {wipeModalOpen &&
+        createPortal(
           <div
-            className="awase-menu-pop w-full max-w-md rounded-2xl bg-[#11131A]/95 border border-white/[0.12] shadow-[0_24px_64px_rgba(0,0,0,0.85)] p-6 space-y-4"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 backdrop-blur-md p-4 awase-view-enter"
+            onClick={() => !wipeBusy && setWipeModalOpen(false)}
           >
-            <div className="space-y-1">
-              <h3 className="font-display text-base font-bold text-white">
-                {preferences.language === "ru" ? "Удалить данные Awase?" : "Delete Awase Data?"}
-              </h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                {preferences.language === "ru"
-                  ? "Выберите, нужно ли сохранить подключённые аккаунты Яндекс Музыки, Spotify и SoundCloud."
-                  : "Choose whether to keep your connected Yandex Music, Spotify, and SoundCloud accounts."}
-              </p>
+            <div
+              className="awase-menu-pop w-full max-w-md rounded-2xl bg-[#11131A]/95 border border-white/[0.12] shadow-[0_24px_64px_rgba(0,0,0,0.85)] p-6 space-y-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="space-y-1">
+                <h3 className="font-display text-base font-bold text-white">
+                  {preferences.language === "ru" ? "Удалить данные Awase?" : "Delete Awase Data?"}
+                </h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  {preferences.language === "ru"
+                    ? "Выберите, нужно ли сохранить подключённые аккаунты Яндекс Музыки, Spotify и SoundCloud."
+                    : "Choose whether to keep your connected Yandex Music, Spotify, and SoundCloud accounts."}
+                </p>
+              </div>
+              <div className="space-y-2.5">
+                <button
+                  type="button"
+                  disabled={wipeBusy}
+                  onClick={async () => {
+                    setWipeBusy(true);
+                    try {
+                      await onWipeData(true);
+                      api.getCacheStats().then(setCacheStats).catch(() => {});
+                      setWipeModalOpen(false);
+                    } finally {
+                      setWipeBusy(false);
+                    }
+                  }}
+                  className="w-full text-left px-4 py-3 rounded-xl bg-white/[0.06] hover:bg-white/[0.11] border border-white/[0.1] transition-all duration-200 active:scale-[0.98] cursor-pointer disabled:opacity-50"
+                >
+                  <div className="text-xs font-semibold text-white">
+                    {preferences.language === "ru"
+                      ? "Удалить всё, кроме подключённых сервисов"
+                      : "Delete everything except connected accounts"}
+                  </div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">
+                    {preferences.language === "ru"
+                      ? "Удалит все треки, плейлисты, папки, историю волны и кэш"
+                      : "Removes all tracks, playlists, folders, wave history & cache"}
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  disabled={wipeBusy}
+                  onClick={async () => {
+                    setWipeBusy(true);
+                    try {
+                      await onWipeData(false);
+                      api.getCacheStats().then(setCacheStats).catch(() => {});
+                      setWipeModalOpen(false);
+                    } finally {
+                      setWipeBusy(false);
+                    }
+                  }}
+                  className="w-full text-left px-4 py-3 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 transition-all duration-200 active:scale-[0.98] cursor-pointer disabled:opacity-50"
+                >
+                  <div className="text-xs font-semibold text-rose-200">
+                    {preferences.language === "ru"
+                      ? "Удалить абсолютно всё (включая авторизации)"
+                      : "Delete everything (including logins & tokens)"}
+                  </div>
+                  <div className="text-[11px] text-rose-300/75 mt-0.5">
+                    {preferences.language === "ru"
+                      ? "Полный сброс приложения к состоянию после установки"
+                      : "Full factory reset of all tracks, accounts, and settings"}
+                  </div>
+                </button>
+              </div>
+              <div className="flex justify-end pt-1">
+                <button
+                  type="button"
+                  disabled={wipeBusy}
+                  onClick={() => setWipeModalOpen(false)}
+                  className="px-4 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-xs font-medium text-slate-300 hover:text-white transition-all cursor-pointer"
+                >
+                  {preferences.language === "ru" ? "Отмена" : "Cancel"}
+                </button>
+              </div>
             </div>
-            <div className="space-y-2.5">
-              <button
-                type="button"
-                disabled={wipeBusy}
-                onClick={async () => {
-                  setWipeBusy(true);
-                  try {
-                    await onWipeData(true);
-                    api.getCacheStats().then(setCacheStats).catch(() => {});
-                    setWipeModalOpen(false);
-                  } finally {
-                    setWipeBusy(false);
-                  }
-                }}
-                className="w-full text-left px-4 py-3 rounded-xl bg-white/[0.06] hover:bg-white/[0.11] border border-white/[0.1] transition-all duration-200 active:scale-[0.98] cursor-pointer disabled:opacity-50"
-              >
-                <div className="text-xs font-semibold text-white">
-                  {preferences.language === "ru"
-                    ? "Удалить всё, кроме подключённых сервисов"
-                    : "Delete everything except connected accounts"}
-                </div>
-                <div className="text-[11px] text-slate-400 mt-0.5">
-                  {preferences.language === "ru"
-                    ? "Удалит все треки, плейлисты, папки, историю волны и кэш"
-                    : "Removes all tracks, playlists, folders, wave history & cache"}
-                </div>
-              </button>
-              <button
-                type="button"
-                disabled={wipeBusy}
-                onClick={async () => {
-                  setWipeBusy(true);
-                  try {
-                    await onWipeData(false);
-                    api.getCacheStats().then(setCacheStats).catch(() => {});
-                    setWipeModalOpen(false);
-                  } finally {
-                    setWipeBusy(false);
-                  }
-                }}
-                className="w-full text-left px-4 py-3 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 transition-all duration-200 active:scale-[0.98] cursor-pointer disabled:opacity-50"
-              >
-                <div className="text-xs font-semibold text-rose-200">
-                  {preferences.language === "ru"
-                    ? "Удалить абсолютно всё (включая авторизации)"
-                    : "Delete everything (including logins & tokens)"}
-                </div>
-                <div className="text-[11px] text-rose-300/75 mt-0.5">
-                  {preferences.language === "ru"
-                    ? "Полный сброс приложения к состоянию после установки"
-                    : "Full factory reset of all tracks, accounts, and settings"}
-                </div>
-              </button>
-            </div>
-            <div className="flex justify-end pt-1">
-              <button
-                type="button"
-                disabled={wipeBusy}
-                onClick={() => setWipeModalOpen(false)}
-                className="px-4 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-xs font-medium text-slate-300 hover:text-white transition-all cursor-pointer"
-              >
-                {preferences.language === "ru" ? "Отмена" : "Cancel"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

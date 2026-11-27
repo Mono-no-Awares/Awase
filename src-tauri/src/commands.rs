@@ -202,12 +202,15 @@ pub async fn dislike_wave_track(state: State<'_, AppState>, track: Track) -> Res
         track.title.trim().to_lowercase(),
         track.artist.trim().to_lowercase()
     );
-    yandex::load_wave_seen(vec![track.external_id.clone(), key.clone()]);
+    yandex::load_wave_seen(vec![track.external_id.clone(), key.clone()], None);
     soundcloud::load_wave_seen(vec![track.external_id.clone(), key.clone()]);
-    let mut combined = yandex::dump_wave_seen();
+    let (mut combined, last_ym) = yandex::dump_wave_seen();
     combined.extend(soundcloud::dump_wave_seen());
     if let Ok(json_s) = serde_json::to_string(&combined) {
         let _ = state.db.save_setting("wave_seen_v1", &json_s);
+    }
+    if let Some(lid) = last_ym {
+        let _ = state.db.save_setting("wave_last_track_id_v1", &lid);
     }
     if track.source == SourceKind::Yandex {
         if let Ok(Some((Some(tok), _, _, _))) = state.db.get_credentials(SourceKind::Yandex) {
@@ -282,137 +285,27 @@ pub async fn rescan_local_folders(state: State<'_, AppState>) -> Result<usize, S
     .map_err(|e| e.to_string())?
 }
 
-fn strip_parens_and_feat(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    let mut p_depth = 0usize;
-    let mut b_depth = 0usize;
-    for ch in s.chars() {
-        match ch {
-            '(' => p_depth += 1,
-            ')' => p_depth = p_depth.saturating_sub(1),
-            '[' => b_depth += 1,
-            ']' => b_depth = b_depth.saturating_sub(1),
-            _ if p_depth == 0 && b_depth == 0 => out.push(ch),
-            _ => {}
-        }
-    }
-    out.to_lowercase()
-        .replace("feat.", " ")
-        .replace("ft.", " ")
-        .split(|c: char| !c.is_alphanumeric())
-        .filter(|t| !t.is_empty())
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
-fn score_spotify_candidate(target: &Track, cand: &Track) -> Option<i32> {
-    if cand.source == SourceKind::Spotify {
-        return None;
-    }
-    let t_title_raw = target.title.to_lowercase();
-    let c_title_raw = cand.title.to_lowercase();
-
-    const UNWANTED_TAGS: &[&str] = &[
-        "remix",
-        "slowed",
-        "reverb",
-        "nightcore",
-        "sped up",
-        "speed up",
-        "mashup",
-        "cover",
-        "live",
-        "instrumental",
-        "karaoke",
-        "8d",
-        "bass boost",
-        "bootleg",
-        "flip",
-        "acoustic",
-        "demo",
-    ];
-    let mut score: i32 = 0;
-    for tag in UNWANTED_TAGS {
-        if c_title_raw.contains(tag) && !t_title_raw.contains(tag) {
-            score -= 120;
-        }
-    }
-
-    let t_clean = strip_parens_and_feat(&target.title);
-    let c_clean = strip_parens_and_feat(&cand.title);
-    let t_tokens: Vec<&str> = t_clean.split_whitespace().collect();
-    let c_tokens: Vec<&str> = c_clean.split_whitespace().collect();
-    if t_tokens.is_empty() || c_tokens.is_empty() {
-        return None;
-    }
-
-    if t_clean == c_clean {
-        score += 80;
-    } else if c_clean.contains(&t_clean) || t_clean.contains(&c_clean) {
-        score += 50;
-    } else {
-        let hits = t_tokens.iter().filter(|tt| c_tokens.contains(tt)).count();
-        let ratio = hits as f64 / t_tokens.len() as f64;
-        if ratio < 0.5 {
-            return None;
-        }
-        score += (ratio * 45.0) as i32;
-    }
-
-    let first_artist = target
-        .artist
-        .split(',')
-        .next()
-        .unwrap_or("")
-        .trim()
-        .to_lowercase();
-    let a_tokens: Vec<String> = strip_parens_and_feat(&first_artist)
-        .split_whitespace()
-        .map(str::to_string)
-        .collect();
-    let c_artist_clean = strip_parens_and_feat(&cand.artist);
-    let c_combined = format!("{} {}", c_artist_clean, c_clean);
-    if !a_tokens.is_empty() {
-        let a_hits = a_tokens
-            .iter()
-            .filter(|at| c_combined.contains(at.as_str()))
-            .count();
-        if a_hits == a_tokens.len() {
-            score += 55;
-        } else if a_hits > 0 {
-            score += 25;
-        } else {
-            score -= 70;
-        }
-    }
-
-    if target.duration_ms > 0 && cand.duration_ms > 0 {
-        let diff_sec = (target.duration_ms as i64 - cand.duration_ms as i64).abs() / 1000;
-        if diff_sec <= 3 {
-            score += 50;
-        } else if diff_sec <= 8 {
-            score += 25;
-        } else if diff_sec > 20 {
-            score -= 80;
-        }
-    }
-
-    if !a_tokens.is_empty() && !c_combined.contains(&a_tokens[0]) {
-        return None;
-    }
-
-    if score >= 60 {
-        Some(score)
-    } else {
-        None
-    }
-}
-
 #[tauri::command]
-pub async fn play_track(state: State<'_, AppState>, track: Track) -> Result<(), String> {
+pub async fn play_track(app: AppHandle, state: State<'_, AppState>, track: Track) -> Result<(), String> {
     let seq = state.play_seq.fetch_add(1, Ordering::SeqCst) + 1;
     let codec_label = track.codec.clone().unwrap_or_else(|| "AUDIO".to_string());
     let bitrate = track.bitrate_kbps.unwrap_or(0);
+
+    if track.source == SourceKind::Spotify {
+        state.engine.stop();
+        let token = state
+            .db
+            .get_credentials(SourceKind::Spotify)?
+            .and_then(|c| c.0)
+            .ok_or_else(|| "Подключите аккаунт Spotify".to_string())?;
+        if state.play_seq.load(Ordering::SeqCst) != seq {
+            return Ok(());
+        }
+        let vol = state.engine.get_telemetry().volume;
+        return crate::spotify_player::play_track(&app, &state.http, &token, &track, vol).await;
+    }
+
+    crate::spotify_player::stop(&app);
 
     let file_path = match track.source {
         SourceKind::Local => {
@@ -469,226 +362,77 @@ pub async fn play_track(state: State<'_, AppState>, track: Track) -> Result<(), 
             }
             out
         }
-        SourceKind::Spotify => {
-            let local_match = state
-                .db
-                .get_tracks(None, Some(&track.title))
-                .ok()
-                .and_then(|candidates| {
-                    candidates
-                        .into_iter()
-                        .filter_map(|c| score_spotify_candidate(&track, &c).map(|s| (s, c)))
-                        .max_by_key(|(s, _)| *s)
-                        .map(|(_, c)| c)
-                });
-
-            if let Some(matched) = local_match {
-                match matched.source {
-                    SourceKind::Local => {
-                        if let Some(p) = matched.local_path {
-                            PathBuf::from(p)
-                        } else {
-                            return Err("Missing local file path".to_string());
-                        }
-                    }
-                    SourceKind::Yandex => {
-                        let token = state
-                            .db
-                            .get_credentials(SourceKind::Yandex)?
-                            .and_then(|c| c.0)
-                            .ok_or_else(|| "Connect Yandex Music first".to_string())?;
-                        let (stream_url, _, ext) =
-                            yandex::resolve_stream_url(&state.http, &token, &matched.external_id)
-                                .await?;
-                        providers::download_to_cache(
-                            &state.http,
-                            &state.cache_dir,
-                            &matched.id,
-                            &ext,
-                            &stream_url,
-                            None,
-                        )
-                        .await?
-                    }
-                    SourceKind::SoundCloud => {
-                        let creds = state.db.get_credentials(SourceKind::SoundCloud)?;
-                        let cached_cid = creds.as_ref().and_then(|c| c.1.as_deref());
-                        let cid = soundcloud::resolve_client_id(&state.http, cached_cid).await?;
-                        soundcloud::resolve_and_download(
-                            &state.http,
-                            &state.cache_dir,
-                            &cid,
-                            &matched.external_id,
-                            &matched.id,
-                        )
-                        .await?
-                    }
-                    SourceKind::Spotify => unreachable!(),
-                }
-            } else {
-                let mut resolved_path: Option<PathBuf> = None;
-
-                if let Ok(Some((Some(ytok), _, _, _))) = state.db.get_credentials(SourceKind::Yandex) {
-                    let y_query = format!("{} {}", track.artist, track.title);
-                    if let Ok(y_tracks) = yandex::search_tracks(&state.http, Some(ytok.as_str()), &y_query).await {
-                        let mut scored_y: Vec<(i32, Track)> = y_tracks
-                            .into_iter()
-                            .filter_map(|y| score_spotify_candidate(&track, &y).map(|s| (s, y)))
-                            .collect();
-                        scored_y.sort_by(|a, b| b.0.cmp(&a.0));
-                        for (_, best_y) in scored_y.into_iter().take(2) {
-                            if let Ok((stream_url, _, ext)) =
-                                yandex::resolve_stream_url(&state.http, &ytok, &best_y.external_id)
-                                    .await
-                            {
-                                if let Ok(p) = providers::download_to_cache(
-                                    &state.http,
-                                    &state.cache_dir,
-                                    &best_y.id,
-                                    &ext,
-                                    &stream_url,
-                                    None,
-                                )
-                                .await
-                                {
-                                    resolved_path = Some(p);
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if resolved_path.is_none() {
-                    let cached_cid = state
-                        .db
-                        .get_credentials(SourceKind::SoundCloud)
-                        .ok()
-                        .flatten()
-                        .and_then(|c| c.1);
-                    if let Ok(cid) =
-                        soundcloud::resolve_client_id(&state.http, cached_cid.as_deref()).await
-                    {
-                        let query = format!("{} {}", track.artist, track.title);
-                        let mut sc_candidates = soundcloud::search_tracks(&state.http, &cid, &query)
-                            .await
-                            .unwrap_or_default();
-                        if sc_candidates.is_empty() {
-                            sc_candidates =
-                                soundcloud::search_tracks(&state.http, &cid, &track.title)
-                                    .await
-                                    .unwrap_or_default();
-                        }
-                        let mut scored_sc: Vec<(i32, Track)> = sc_candidates
-                            .into_iter()
-                            .filter_map(|s| score_spotify_candidate(&track, &s).map(|sc| (sc, s)))
-                            .collect();
-                        scored_sc.sort_by(|a, b| b.0.cmp(&a.0));
-                        for (_, candidate) in scored_sc.into_iter().take(3) {
-                            if let Ok(p) = soundcloud::resolve_and_download(
-                                &state.http,
-                                &state.cache_dir,
-                                &cid,
-                                &candidate.external_id,
-                                &candidate.id,
-                            )
-                            .await
-                            {
-                                resolved_path = Some(p);
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                if let Some(p) = resolved_path {
-                    p
-                } else {
-                    let preview = track.stream_url.as_ref().ok_or_else(|| {
-                        "[SPOTIFY_NOT_FOUND] Точная копия трека не найдена в подключённых сервисах"
-                            .to_string()
-                    })?;
-                    providers::download_to_cache(
-                        &state.http,
-                        &state.cache_dir,
-                        &track.id,
-                        "mp3",
-                        preview,
-                        None,
-                    )
-                    .await?
-                }
-            }
-        }
+        SourceKind::Spotify => unreachable!(),
     };
 
     if state.play_seq.load(Ordering::SeqCst) != seq {
         return Ok(());
     }
 
-    let play_res = state
+    state
         .engine
-        .play_file(&track.id, file_path, track.duration_ms, &codec_label, bitrate);
+        .play_file(&track.id, file_path, track.duration_ms, &codec_label, bitrate)
+}
 
-    if play_res.is_err() && track.source == SourceKind::Spotify {
-        if let Some(ref preview) = track.stream_url {
-            if let Ok(preview_path) = providers::download_to_cache(
-                &state.http,
-                &state.cache_dir,
-                &track.id,
-                "mp3",
-                preview,
-                None,
-            )
-            .await
-            {
-                if state.play_seq.load(Ordering::SeqCst) != seq {
-                    return Ok(());
-                }
-                return state.engine.play_file(
-                    &track.id,
-                    preview_path,
-                    track.duration_ms,
-                    &codec_label,
-                    bitrate,
-                );
-            }
-        }
+#[tauri::command]
+pub fn pause_playback(app: AppHandle, state: State<'_, AppState>) {
+    if crate::spotify_player::is_active() {
+        crate::spotify_player::pause(&app);
+    } else {
+        state.engine.pause();
     }
-
-    play_res
 }
 
 #[tauri::command]
-pub fn pause_playback(state: State<'_, AppState>) {
-    state.engine.pause();
+pub fn resume_playback(app: AppHandle, state: State<'_, AppState>) {
+    if crate::spotify_player::is_active() {
+        crate::spotify_player::resume(&app);
+    } else {
+        state.engine.resume();
+    }
 }
 
 #[tauri::command]
-pub fn resume_playback(state: State<'_, AppState>) {
-    state.engine.resume();
-}
-
-#[tauri::command]
-pub fn stop_playback(state: State<'_, AppState>) {
+pub fn stop_playback(app: AppHandle, state: State<'_, AppState>) {
+    crate::spotify_player::stop(&app);
     state.engine.stop();
 }
 
 #[tauri::command]
-pub fn seek_playback(state: State<'_, AppState>, position_ms: u64) -> Result<(), String> {
-    state.engine.seek(position_ms)
+pub fn seek_playback(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    position_ms: u64,
+) -> Result<(), String> {
+    if crate::spotify_player::is_active() {
+        crate::spotify_player::seek(&app, position_ms);
+        Ok(())
+    } else {
+        state.engine.seek(position_ms)
+    }
 }
 
 #[tauri::command]
-pub fn set_volume(state: State<'_, AppState>, volume: f32) {
+pub fn set_volume(app: AppHandle, state: State<'_, AppState>, volume: f32) {
     state.engine.set_volume(volume);
+    if crate::spotify_player::is_active() {
+        crate::spotify_player::set_volume(&app, volume);
+    }
     let _ = state.db.save_setting("volume", &volume.clamp(0.0, 1.0).to_string());
     let _ = state.db.save_setting("muted", "false");
 }
 
 #[tauri::command]
-pub fn set_muted(state: State<'_, AppState>, muted: bool) {
+pub fn set_muted(app: AppHandle, state: State<'_, AppState>, muted: bool) {
     state.engine.set_muted(muted);
+    if crate::spotify_player::is_active() {
+        let vol = if muted {
+            0.0
+        } else {
+            state.engine.get_telemetry().volume
+        };
+        crate::spotify_player::set_volume(&app, vol);
+    }
     let _ = state
         .db
         .save_setting("muted", if muted { "true" } else { "false" });
@@ -696,7 +440,7 @@ pub fn set_muted(state: State<'_, AppState>, muted: bool) {
 
 #[tauri::command]
 pub fn get_telemetry(state: State<'_, AppState>) -> AudioTelemetry {
-    state.engine.get_telemetry()
+    crate::spotify_player::overlay_telemetry(state.engine.get_telemetry())
 }
 
 #[tauri::command]
@@ -1073,27 +817,321 @@ pub async fn open_spotify_login_browser(app: AppHandle, client_id: String) -> Re
 }
 
 #[tauri::command]
+pub async fn open_spotify_web_login(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    let login_url = Url::parse("https://accounts.spotify.com/login?continue=https%3A%2F%2Fopen.spotify.com%2F")
+        .map_err(|e| e.to_string())?;
+    let hook_js = r#"
+(function(){
+  if (window.__awaseSpLoginHook) return;
+  window.__awaseSpLoginHook = true;
+  var sent = false;
+  function trySend(auth, ct) {
+    if (sent || !auth) return;
+    if (location.hostname !== 'open.spotify.com') return;
+    var m = String(auth).match(/^Bearer\s+(.+)$/i);
+    if (!m) return;
+    sent = true;
+    var u = 'https://awase.local.done/?token=' + encodeURIComponent(m[1]) + (ct ? '&ct=' + encodeURIComponent(ct) : '');
+    try { window.location.replace(u); } catch(e) {}
+  }
+  var origFetch = window.fetch;
+  if (origFetch) {
+    window.fetch = function(input, init) {
+      try {
+        var hdrs = (init && init.headers) || (input && input.headers);
+        var auth = '';
+        var ct = '';
+        if (hdrs && typeof hdrs.get === 'function') {
+          auth = hdrs.get('authorization') || hdrs.get('Authorization') || '';
+          ct = hdrs.get('client-token') || '';
+        } else if (hdrs && typeof hdrs === 'object') {
+          auth = hdrs.authorization || hdrs.Authorization || '';
+          ct = hdrs['client-token'] || '';
+        }
+        trySend(auth, ct);
+      } catch(e) {}
+      return origFetch.apply(this, arguments);
+    };
+  }
+  var origOpen = XMLHttpRequest.prototype.open;
+  var origSetHdr = XMLHttpRequest.prototype.setRequestHeader;
+  XMLHttpRequest.prototype.open = function() {
+    this.__awHdrs = {};
+    return origOpen.apply(this, arguments);
+  };
+  XMLHttpRequest.prototype.setRequestHeader = function(k, v) {
+    if (this.__awHdrs) this.__awHdrs[String(k).toLowerCase()] = v;
+    if (String(k).toLowerCase() === 'authorization') {
+      trySend(v, this.__awHdrs ? this.__awHdrs['client-token'] : '');
+    }
+    return origSetHdr.apply(this, arguments);
+  };
+})();
+"#;
+
+    if let Some(existing) = app.get_webview_window("sp_web_login") {
+        let _ = existing.close();
+    }
+
+    let app_cb = app.clone();
+    let db = Arc::clone(&state.db);
+    let http = state.http.clone();
+
+    tauri::WebviewWindowBuilder::new(
+        &app,
+        "sp_web_login",
+        tauri::WebviewUrl::External(login_url),
+    )
+    .title("Awase — Spotify Login")
+    .inner_size(940.0, 720.0)
+    .center()
+    .initialization_script(hook_js)
+    .on_navigation(move |nav_url| {
+        if nav_url.host_str() == Some("awase.local.done") {
+            let mut tok: Option<String> = None;
+            let mut ct: Option<String> = None;
+            for (k, v) in nav_url.query_pairs() {
+                if k == "token" && !v.is_empty() {
+                    tok = Some(v.into_owned());
+                } else if k == "ct" && !v.is_empty() {
+                    ct = Some(v.into_owned());
+                }
+            }
+            if let Some(token) = tok {
+                let app_emit = app_cb.clone();
+                let db_inner = Arc::clone(&db);
+                let http_inner = http.clone();
+                tauri::async_runtime::spawn(async move {
+                    let label = spotify::fetch_me(&http_inner, &token)
+                        .await
+                        .unwrap_or_else(|_| "Spotify Account".to_string());
+                    let _ = db_inner.save_credentials(
+                        SourceKind::Spotify,
+                        Some(&token),
+                        None,
+                        Some(&label),
+                        ct.as_deref(),
+                    );
+                    let (tracks, playlists) =
+                        spotify::sync_library(&http_inner, &token, ct.as_deref())
+                            .await
+                            .unwrap_or_default();
+                    let mut count = tracks.len();
+                    let _ = db_inner.upsert_tracks(&tracks);
+                    for pl in playlists {
+                        let _ = db_inner.upsert_playlist(&pl);
+                        if let Some(pid) = pl.id.strip_prefix("spotify_pl_") {
+                            if let Some((_, pl_tracks)) = spotify::import_public_playlist_via_api(
+                                &http_inner,
+                                pid,
+                                &token,
+                                ct.as_deref(),
+                            )
+                            .await
+                            {
+                                count += pl_tracks.len();
+                                for t in &pl_tracks {
+                                    let _ = db_inner.add_track_to_playlist(&pl.id, t);
+                                }
+                            }
+                        }
+                    }
+                    let _ = app_emit.emit(
+                        "awase://oauth-complete",
+                        OAuthEventPayload {
+                            source: "spotify".to_string(),
+                            ok: true,
+                            message: format!("Spotify: {} ({} tracks)", label, count),
+                        },
+                    );
+                });
+            }
+            if let Some(w) = app_cb.get_webview_window("sp_web_login") {
+                let _ = w.close();
+            }
+            return false;
+        }
+        true
+    })
+    .build()
+    .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn sync_spotify_library(state: State<'_, AppState>) -> Result<usize, String> {
-    let token = state
+    let creds = state
         .db
         .get_credentials(SourceKind::Spotify)?
-        .and_then(|c| c.0)
         .ok_or_else(|| "Spotify not connected".to_string())?;
-    let (tracks, playlists) = spotify::sync_library(&state.http, &token).await?;
-    let count = tracks.len();
+    let token = creds
+        .0
+        .ok_or_else(|| "Spotify not connected".to_string())?;
+    let ct = creds.3;
+    let (tracks, playlists) =
+        spotify::sync_library(&state.http, &token, ct.as_deref()).await?;
+    let mut count = tracks.len();
     state.db.upsert_tracks(&tracks)?;
     for pl in playlists {
         state.db.upsert_playlist(&pl)?;
+        if let Some(pid) = pl.id.strip_prefix("spotify_pl_") {
+            if let Some((_, pl_tracks)) =
+                spotify::import_public_playlist_via_api(&state.http, pid, &token, ct.as_deref())
+                    .await
+            {
+                count += pl_tracks.len();
+                for t in &pl_tracks {
+                    let _ = state.db.add_track_to_playlist(&pl.id, t);
+                }
+            }
+        }
     }
     Ok(count)
 }
 
+async fn probe_spotify_web_token(
+    app: &AppHandle,
+    pid: &str,
+) -> Option<(String, Option<String>)> {
+    let target_url =
+        Url::parse(&format!("https://open.spotify.com/playlist/{}", pid)).ok()?;
+    let (tx, rx) = tokio::sync::oneshot::channel::<(String, Option<String>)>();
+    let tx_cell = Arc::new(parking_lot::Mutex::new(Some(tx)));
+
+    let hook_js = r#"
+(function(){
+  if (window.__awaseSpHooked) return;
+  window.__awaseSpHooked = true;
+  var sent = false;
+  function trySend(auth, ct) {
+    if (sent || !auth) return;
+    var m = String(auth).match(/^Bearer\s+(.+)$/i);
+    if (!m) return;
+    sent = true;
+    var u = 'https://awase.local.done/?token=' + encodeURIComponent(m[1]) + (ct ? '&ct=' + encodeURIComponent(ct) : '');
+    try { window.location.replace(u); } catch(e) {}
+  }
+  var origFetch = window.fetch;
+  if (origFetch) {
+    window.fetch = function(input, init) {
+      try {
+        var hdrs = (init && init.headers) || (input && input.headers);
+        var auth = '';
+        var ct = '';
+        if (hdrs && typeof hdrs.get === 'function') {
+          auth = hdrs.get('authorization') || hdrs.get('Authorization') || '';
+          ct = hdrs.get('client-token') || '';
+        } else if (hdrs && typeof hdrs === 'object') {
+          auth = hdrs.authorization || hdrs.Authorization || '';
+          ct = hdrs['client-token'] || '';
+        }
+        trySend(auth, ct);
+      } catch(e) {}
+      return origFetch.apply(this, arguments);
+    };
+  }
+  var origOpen = XMLHttpRequest.prototype.open;
+  var origSetHdr = XMLHttpRequest.prototype.setRequestHeader;
+  XMLHttpRequest.prototype.open = function() {
+    this.__awHdrs = {};
+    return origOpen.apply(this, arguments);
+  };
+  XMLHttpRequest.prototype.setRequestHeader = function(k, v) {
+    if (this.__awHdrs) this.__awHdrs[String(k).toLowerCase()] = v;
+    if (String(k).toLowerCase() === 'authorization') {
+      trySend(v, this.__awHdrs ? this.__awHdrs['client-token'] : '');
+    }
+    return origSetHdr.apply(this, arguments);
+  };
+  setInterval(function(){
+    try { window.scrollBy(0, 600); } catch(e) {}
+  }, 900);
+})();
+"#;
+
+    let label = format!(
+        "sp_probe_{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0)
+    );
+    let label_close = label.clone();
+    let app_close = app.clone();
+    let tx_nav = Arc::clone(&tx_cell);
+
+    let win = tauri::WebviewWindowBuilder::new(app, &label, tauri::WebviewUrl::External(target_url))
+        .visible(false)
+        .initialization_script(hook_js)
+        .on_navigation(move |nav_url| {
+            if nav_url.host_str() == Some("awase.local.done") {
+                let mut tok: Option<String> = None;
+                let mut ct: Option<String> = None;
+                for (k, v) in nav_url.query_pairs() {
+                    if k == "token" && !v.is_empty() {
+                        tok = Some(v.into_owned());
+                    } else if k == "ct" && !v.is_empty() {
+                        ct = Some(v.into_owned());
+                    }
+                }
+                if let Some(t) = tok {
+                    if let Some(sender) = tx_nav.lock().take() {
+                        let _ = sender.send((t, ct));
+                    }
+                }
+                if let Some(w) = app_close.get_webview_window(&label_close) {
+                    let _ = w.close();
+                }
+                return false;
+            }
+            true
+        })
+        .build()
+        .ok()?;
+
+    let res = tokio::time::timeout(std::time::Duration::from_secs(10), rx)
+        .await
+        .ok()
+        .and_then(|r| r.ok());
+    let _ = win.close();
+    res
+}
+
 #[tauri::command]
 pub async fn import_spotify_playlist_url(
+    app: AppHandle,
     state: State<'_, AppState>,
     url: String,
 ) -> Result<usize, String> {
-    let (pl, tracks) = spotify::import_public_playlist(&state.http, &url).await?;
+    let user_tok = state
+        .db
+        .get_credentials(SourceKind::Spotify)?
+        .and_then(|c| c.0);
+
+    let mut imported: Option<(Playlist, Vec<Track>)> = None;
+    if let Some(pid) = spotify::extract_spotify_playlist_id(&url) {
+        if let Some(ref tok) = user_tok.as_deref().filter(|t| !t.trim().is_empty()) {
+            imported =
+                spotify::import_public_playlist_via_api(&state.http, &pid, tok, None).await;
+        }
+        if imported.is_none() {
+            if let Some((live_tok, ct)) = probe_spotify_web_token(&app, &pid).await {
+                imported = spotify::import_public_playlist_via_api(
+                    &state.http,
+                    &pid,
+                    &live_tok,
+                    ct.as_deref(),
+                )
+                .await;
+            }
+        }
+    }
+
+    let (pl, tracks) = match imported {
+        Some(pair) => pair,
+        None => spotify::import_public_playlist(&state.http, &url, user_tok.as_deref()).await?,
+    };
     let count = tracks.len();
     state.db.upsert_playlist(&pl)?;
     for t in &tracks {
@@ -1198,13 +1236,7 @@ extern "system" {
 }
 
 #[tauri::command]
-pub fn set_gaming_mode(enabled: bool) {
-    if enabled {
-        #[cfg(windows)]
-        unsafe {
-            SetProcessWorkingSetSize(GetCurrentProcess(), usize::MAX, usize::MAX);
-        }
-    }
+pub fn set_gaming_mode(_enabled: bool) {
 }
 
 #[tauri::command]
@@ -1390,11 +1422,14 @@ pub async fn get_wave_tracks(
     source: String,
     reset: Option<bool>,
 ) -> Result<Vec<Track>, String> {
+    let saved_last_id = state.db.get_setting("wave_last_track_id_v1").ok().flatten();
     if let Ok(Some(saved_seen)) = state.db.get_setting("wave_seen_v1") {
         if let Ok(ids) = serde_json::from_str::<Vec<String>>(&saved_seen) {
-            yandex::load_wave_seen(ids.clone());
+            yandex::load_wave_seen(ids.clone(), saved_last_id);
             soundcloud::load_wave_seen(ids);
         }
+    } else if saved_last_id.is_some() {
+        yandex::load_wave_seen(Vec::new(), saved_last_id);
     }
 
     let want_ym = source == "yandex" || source == "mix";
@@ -1453,18 +1488,24 @@ pub async fn get_wave_tracks(
                 mixed.push(t.clone());
             }
         }
-        let mut combined = yandex::dump_wave_seen();
+        let (mut combined, last_ym) = yandex::dump_wave_seen();
         combined.extend(soundcloud::dump_wave_seen());
         if let Ok(json_s) = serde_json::to_string(&combined) {
             let _ = state.db.save_setting("wave_seen_v1", &json_s);
         }
+        if let Some(lid) = last_ym {
+            let _ = state.db.save_setting("wave_last_track_id_v1", &lid);
+        }
         return Ok(mixed);
     }
 
-    let mut combined = yandex::dump_wave_seen();
+    let (mut combined, last_ym) = yandex::dump_wave_seen();
     combined.extend(soundcloud::dump_wave_seen());
     if let Ok(json_s) = serde_json::to_string(&combined) {
         let _ = state.db.save_setting("wave_seen_v1", &json_s);
+    }
+    if let Some(lid) = last_ym {
+        let _ = state.db.save_setting("wave_last_track_id_v1", &lid);
     }
 
     if want_ym {

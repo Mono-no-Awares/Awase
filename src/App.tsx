@@ -68,6 +68,15 @@ const DEFAULT_PREFS: AppPreferences = {
   gamingMode: false,
   discordRpc: true,
   discordAppId: "",
+  rpcStyle: "detailed",
+  rpcAnimation: "eq",
+  rpcCoverMode: "cover",
+  rpcShowIdle: true,
+  rpcShowPaused: true,
+  rpcShowButtons: true,
+  rpcShowTimestamps: true,
+  rpcShowSource: true,
+  rpcIdleText: "",
 };
 
 function hexToRgbTriplet(hex: string): string {
@@ -308,10 +317,59 @@ export const App: React.FC = () => {
     currentTrack,
   ]);
 
+  const rpcLyricsRef = useRef<{
+    trackId: string | null;
+    lines: Array<{ timeMs: number | null; text: string }>;
+    lastLine: string | null;
+    lastPushTs: number;
+  }>({ trackId: null, lines: [], lastLine: null, lastPushTs: 0 });
+
+  useEffect(() => {
+    if (!preferences.discordRpc || preferences.rpcStyle !== "lyrics" || !currentTrack) {
+      rpcLyricsRef.current = { trackId: null, lines: [], lastLine: null, lastPushTs: 0 };
+      return;
+    }
+    if (rpcLyricsRef.current.trackId === currentTrack.id) return;
+    let cancelled = false;
+    rpcLyricsRef.current = { trackId: currentTrack.id, lines: [], lastLine: null, lastPushTs: 0 };
+    api
+      .getTrackLyrics(currentTrack)
+      .then((res) => {
+        if (!cancelled && res.synced && res.lines.length > 0) {
+          rpcLyricsRef.current.lines = res.lines;
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [preferences.discordRpc, preferences.rpcStyle, currentTrack?.id]);
+
+  const getActiveRpcLyric = useCallback((posMs: number) => {
+    const lines = rpcLyricsRef.current.lines;
+    if (!lines.length) return null;
+    let active: string | null = null;
+    for (let i = 0; i < lines.length; i++) {
+      const t = lines[i].timeMs;
+      if (t !== null && t <= posMs + 300) {
+        if (lines[i].text.trim()) active = lines[i].text.trim();
+      } else if (t !== null && t > posMs + 300) {
+        break;
+      }
+    }
+    return active;
+  }, []);
+
   const pushDiscordPresence = useCallback(
     (posOverrideMs?: number) => {
       const posMs = posOverrideMs ?? telemetry.positionMs;
       lastRpcPosRef.current = { pos: posMs, ts: performance.now() };
+      const lyricLine =
+        preferences.rpcStyle === "lyrics" ? getActiveRpcLyric(posMs) : null;
+      if (lyricLine !== null) {
+        rpcLyricsRef.current.lastLine = lyricLine;
+      }
+      rpcLyricsRef.current.lastPushTs = performance.now();
       api
         .updateDiscordPresence({
           enabled: preferences.discordRpc,
@@ -320,26 +378,59 @@ export const App: React.FC = () => {
           artist: currentTrack?.artist ?? null,
           album: currentTrack?.album ?? null,
           coverUrl: currentTrack?.coverUrl ?? null,
+          externalId: currentTrack?.externalId ?? null,
           isPlaying: telemetry.isPlaying,
           positionMs: posMs,
           durationMs: telemetry.durationMs || currentTrack?.durationMs || 0,
           source: currentTrack?.source ?? "local",
+          codec: telemetry.codec || currentTrack?.codec || "",
+          bitrateKbps: telemetry.bitrateKbps || currentTrack?.bitrateKbps || 0,
+          sampleRateHz: telemetry.sampleRateHz || 0,
+          activeView: lyricsOpen ? "lyrics" : activeView,
+          lyricLine,
+          rpcStyle: preferences.rpcStyle ?? "detailed",
+          rpcAnimation: preferences.rpcAnimation ?? "eq",
+          rpcCoverMode: preferences.rpcCoverMode ?? "cover",
+          rpcShowIdle: preferences.rpcShowIdle !== false,
+          rpcShowPaused: preferences.rpcShowPaused !== false,
+          rpcShowButtons: preferences.rpcShowButtons !== false,
+          rpcShowTimestamps: preferences.rpcShowTimestamps !== false,
+          rpcShowSource: preferences.rpcShowSource !== false,
+          rpcIdleText: preferences.rpcIdleText ?? "",
         })
         .catch(() => {});
     },
     [
       preferences.discordRpc,
       preferences.discordAppId,
+      preferences.rpcStyle,
+      preferences.rpcAnimation,
+      preferences.rpcCoverMode,
+      preferences.rpcShowIdle,
+      preferences.rpcShowPaused,
+      preferences.rpcShowButtons,
+      preferences.rpcShowTimestamps,
+      preferences.rpcShowSource,
+      preferences.rpcIdleText,
+      activeView,
+      lyricsOpen,
       currentTrack?.id,
       currentTrack?.title,
       currentTrack?.artist,
       currentTrack?.album,
       currentTrack?.coverUrl,
+      currentTrack?.externalId,
       currentTrack?.source,
       currentTrack?.durationMs,
+      currentTrack?.codec,
+      currentTrack?.bitrateKbps,
       telemetry.isPlaying,
       telemetry.positionMs,
       telemetry.durationMs,
+      telemetry.codec,
+      telemetry.bitrateKbps,
+      telemetry.sampleRateHz,
+      getActiveRpcLyric,
     ]
   );
 
@@ -350,6 +441,17 @@ export const App: React.FC = () => {
   }, [
     preferences.discordRpc,
     preferences.discordAppId,
+    preferences.rpcStyle,
+    preferences.rpcAnimation,
+    preferences.rpcCoverMode,
+    preferences.rpcShowIdle,
+    preferences.rpcShowPaused,
+    preferences.rpcShowButtons,
+    preferences.rpcShowTimestamps,
+    preferences.rpcShowSource,
+    preferences.rpcIdleText,
+    activeView,
+    lyricsOpen,
     currentTrack?.id,
     currentTrack?.title,
     currentTrack?.artist,
@@ -366,8 +468,19 @@ export const App: React.FC = () => {
       lastRpcPosRef.current.pos + (performance.now() - lastRpcPosRef.current.ts);
     if (Math.abs(telemetry.positionMs - expected) > 2500) {
       pushDiscordPresence(telemetry.positionMs);
+      return;
     }
-  }, [telemetry.positionMs, telemetry.isPlaying, currentTrack?.id]);
+    if (preferences.discordRpc && preferences.rpcStyle === "lyrics") {
+      const nextLine = getActiveRpcLyric(telemetry.positionMs);
+      if (
+        nextLine &&
+        nextLine !== rpcLyricsRef.current.lastLine &&
+        performance.now() - rpcLyricsRef.current.lastPushTs > 4500
+      ) {
+        pushDiscordPresence(telemetry.positionMs);
+      }
+    }
+  }, [telemetry.positionMs, telemetry.isPlaying, currentTrack?.id, preferences.discordRpc, preferences.rpcStyle, getActiveRpcLyric]);
 
   const startTrackPlayback = useCallback(
     async (track: Track) => {

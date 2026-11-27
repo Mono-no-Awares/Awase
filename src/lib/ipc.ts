@@ -93,11 +93,26 @@ export const api = {
     artist: string | null;
     album: string | null;
     coverUrl: string | null;
+    externalId?: string | null;
     isPlaying: boolean;
     positionMs: number;
     durationMs: number;
     source: string;
-  }) => invoke<void>("update_discord_presence", payload),
+    codec?: string;
+    bitrateKbps?: number;
+    sampleRateHz?: number;
+    activeView?: string;
+    lyricLine?: string | null;
+    rpcStyle?: string;
+    rpcAnimation?: string;
+    rpcCoverMode?: string;
+    rpcShowIdle?: boolean;
+    rpcShowPaused?: boolean;
+    rpcShowButtons?: boolean;
+    rpcShowTimestamps?: boolean;
+    rpcShowSource?: boolean;
+    rpcIdleText?: string;
+  }) => invoke<void>("update_discord_presence", { payload }),
   exportUserBackup: (filePath: string) => invoke<void>("export_user_backup", { filePath }),
   importUserBackup: (filePath: string) => invoke<string | null>("import_user_backup", { filePath }),
   getWaveTracks: (source: "yandex" | "soundcloud" | "mix", reset?: boolean) =>

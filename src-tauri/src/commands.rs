@@ -1245,31 +1245,9 @@ pub fn open_external_url(url: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn update_discord_presence(
-    enabled: bool,
-    app_id: String,
-    title: Option<String>,
-    artist: Option<String>,
-    album: Option<String>,
-    cover_url: Option<String>,
-    is_playing: bool,
-    position_ms: u64,
-    duration_ms: u64,
-    source: String,
-) {
+pub fn update_discord_presence(payload: crate::discord_rpc::DiscordPresencePayload) {
     std::thread::spawn(move || {
-        crate::discord_rpc::update_presence(
-            enabled,
-            &app_id,
-            title.as_deref(),
-            artist.as_deref(),
-            album.as_deref(),
-            cover_url.as_deref(),
-            is_playing,
-            position_ms,
-            duration_ms,
-            &source,
-        );
+        crate::discord_rpc::update_presence(payload);
     });
 }
 

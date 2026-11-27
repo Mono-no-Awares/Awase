@@ -271,6 +271,59 @@ pub async fn sync_likes(
 static SC_WAVE_SEEN: std::sync::LazyLock<parking_lot::Mutex<std::collections::HashSet<String>>> =
     std::sync::LazyLock::new(|| parking_lot::Mutex::new(std::collections::HashSet::new()));
 
+pub fn load_wave_seen(ids: Vec<String>) {
+    let mut g = SC_WAVE_SEEN.lock();
+    for id in ids {
+        g.insert(id);
+    }
+}
+
+pub fn dump_wave_seen() -> Vec<String> {
+    SC_WAVE_SEEN.lock().iter().take(600).cloned().collect()
+}
+
+pub async fn set_track_like(
+    client: &Client,
+    token: Option<&str>,
+    client_id: &str,
+    track_id: &str,
+    liked: bool,
+) -> Result<(), String> {
+    let Some(tok) = token.filter(|t| !t.trim().is_empty()) else {
+        return Ok(());
+    };
+    let me_resp = client
+        .get(format!("{}/me", SC_API))
+        .header("Authorization", format!("OAuth {}", tok))
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !me_resp.status().is_success() {
+        return Err(format!("SoundCloud /me HTTP {}", me_resp.status()));
+    }
+    let me: Value = me_resp.json().await.map_err(|e| e.to_string())?;
+    let uid = me
+        .get("id")
+        .and_then(|v| v.as_u64())
+        .ok_or_else(|| "Missing SoundCloud user id".to_string())?;
+    let url = format!("{}/users/{}/track_likes/{}", SC_API, uid, track_id);
+    let req = if liked {
+        client.put(url)
+    } else {
+        client.delete(url)
+    };
+    let resp = req
+        .header("Authorization", format!("OAuth {}", tok))
+        .query(&[("client_id", client_id)])
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        return Err(format!("SoundCloud like HTTP {}", resp.status()));
+    }
+    Ok(())
+}
+
 pub async fn fetch_my_wave(
     client: &Client,
     client_id: &str,

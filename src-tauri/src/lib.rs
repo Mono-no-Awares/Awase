@@ -187,6 +187,7 @@ pub fn run() {
             commands::get_library_tracks,
             commands::delete_tracks,
             commands::clear_library,
+            commands::wipe_app_data,
             commands::get_playlists,
             commands::get_playlist_tracks,
             commands::create_playlist,
@@ -194,6 +195,7 @@ pub fn run() {
             commands::remove_track_from_playlist,
             commands::delete_playlist,
             commands::toggle_track_like,
+            commands::dislike_wave_track,
             commands::get_local_folders,
             commands::add_local_folder,
             commands::remove_local_folder,
@@ -242,6 +244,9 @@ pub fn run() {
             commands::prefetch_track,
             commands::fetch_cover_cached,
             commands::get_track_lyrics,
+            commands::get_cache_stats,
+            commands::clear_cache,
+            commands::check_for_updates,
         ])
         .run(tauri::generate_context!())
         .expect("error while running awase");

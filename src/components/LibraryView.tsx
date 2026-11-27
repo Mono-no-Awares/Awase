@@ -263,10 +263,10 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                     onClearLibrary();
                   }
                 }}
-                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-medium transition-colors cursor-pointer ${
+                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-medium transition-all duration-200 ease-out active:scale-95 cursor-pointer ${
                   confirmClearAll
-                    ? "bg-rose-500/25 border border-rose-500/50 text-rose-200"
-                    : "bg-white/[0.08] hover:bg-rose-500/15 text-slate-200 hover:text-rose-300"
+                    ? "bg-rose-500/25 border border-rose-500/50 text-rose-100 scale-[1.03] shadow-[0_0_18px_rgba(244,63,94,0.28)]"
+                    : "bg-white/[0.08] hover:bg-rose-500/15 border border-transparent text-slate-200 hover:text-rose-300"
                 }`}
               >
                 <IconTrash size={14} />
@@ -278,7 +278,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
           <button
             type="button"
             onClick={onAddLocalFolder}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full bg-white/[0.08] hover:bg-white/[0.14] text-xs font-medium text-white transition-colors cursor-pointer"
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full bg-white/[0.08] hover:bg-white/[0.14] text-xs font-medium text-white transition-all duration-200 active:scale-95 cursor-pointer"
           >
             <IconFolder size={14} className="text-cyanpulse" />
             <span>{t.addFolder}</span>

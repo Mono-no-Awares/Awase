@@ -19,7 +19,10 @@ export const api = {
       query: query ?? null,
     }),
   deleteTracks: (trackIds: string[]) => invoke<void>("delete_tracks", { trackIds }),
-  clearLibrary: () => invoke<void>("clear_library"),
+  clearLibrary: (scope?: string, playlistId?: string) =>
+    invoke<void>("clear_library", { scope: scope ?? null, playlistId: playlistId ?? null }),
+  wipeAppData: (keepCredentials: boolean) =>
+    invoke<void>("wipe_app_data", { keepCredentials }),
   getPlaylists: () => invoke<Playlist[]>("get_playlists"),
   getPlaylistTracks: (playlistId: string) =>
     invoke<Track[]>("get_playlist_tracks", { playlistId }),
@@ -30,7 +33,10 @@ export const api = {
   removeTrackFromPlaylist: (playlistId: string, trackId: string) =>
     invoke<void>("remove_track_from_playlist", { playlistId, trackId }),
   deletePlaylist: (playlistId: string) => invoke<void>("delete_playlist", { playlistId }),
-  toggleTrackLike: (trackId: string) => invoke<boolean>("toggle_track_like", { trackId }),
+  toggleTrackLike: (trackId: string, track?: Track) =>
+    invoke<boolean>("toggle_track_like", { trackId, track: track ?? null }),
+  dislikeWaveTrack: (track: Track) =>
+    invoke<void>("dislike_wave_track", { track }),
   getLocalFolders: () => invoke<LocalFolder[]>("get_local_folders"),
   addLocalFolder: (path: string) => invoke<number>("add_local_folder", { path }),
   removeLocalFolder: (path: string) => invoke<void>("remove_local_folder", { path }),
@@ -103,4 +109,7 @@ export const api = {
   prefetchTrack: (track: Track) => invoke<void>("prefetch_track", { track }),
   fetchCoverCached: (url: string) => invoke<string>("fetch_cover_cached", { url }),
   getTrackLyrics: (track: Track) => invoke<LyricsPayload>("get_track_lyrics", { track }),
+  getCacheStats: () => invoke<import("../types").CacheStats>("get_cache_stats"),
+  clearCache: () => invoke<import("../types").CacheStats>("clear_cache"),
+  checkForUpdates: () => invoke<import("../types").UpdateCheckResult>("check_for_updates"),
 };

@@ -60,6 +60,7 @@ interface ResonanceViewProps {
   onChangeWaveSource: (src: WaveSource) => void;
   onStartWave: (src: WaveSource) => void;
   onStopWave: () => void;
+  onDislikeWave?: () => void;
   onOpenLyrics: () => void;
 }
 
@@ -92,6 +93,7 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
   onChangeWaveSource,
   onStartWave,
   onStopWave,
+  onDislikeWave,
   onOpenLyrics,
 }) => {
   const t = TRANSLATIONS[language];
@@ -376,9 +378,10 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
         </div>
       </div>
 
-      <div className="relative z-10 flex flex-col items-center justify-center my-auto py-3 pointer-events-none">
+      <div className="relative z-10 flex-1 min-h-0 grid grid-rows-[1fr_auto_1fr] items-center justify-items-center pointer-events-none">
+        <div />
         <div
-          className="relative w-44 h-44 sm:w-52 sm:h-52 rounded-3xl overflow-hidden border border-white/20 bg-[#0A0B0E]/90 backdrop-blur-md flex items-center justify-center transition-all duration-700"
+          className="relative w-[clamp(136px,24vmin,216px)] h-[clamp(136px,24vmin,216px)] rounded-3xl overflow-hidden border border-white/20 bg-[#0A0B0E]/90 backdrop-blur-md flex items-center justify-center transition-all duration-500"
           style={{
             boxShadow: `0 24px 64px -10px ${coverPalette.glow}`,
             transform: telemetry.isPlaying ? `scale(${1 + telemetry.peak * 0.04})` : "scale(1)",
@@ -402,11 +405,11 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
           )}
         </div>
 
-        <div className="mt-5 text-center max-w-xl px-4">
-          <h2 className="font-display text-2xl sm:text-3xl font-bold text-white tracking-tight truncate">
+        <div className="self-start pt-4 text-center max-w-xl px-4">
+          <h2 className="font-display text-xl sm:text-2xl lg:text-3xl font-bold text-white tracking-tight truncate">
             {currentTrack ? currentTrack.title : t.notPlaying}
           </h2>
-          <p className="text-sm text-slate-300 mt-1 truncate">
+          <p className="text-xs sm:text-sm text-slate-300 mt-1 truncate">
             {currentTrack
               ? `${currentTrack.artist}${currentTrack.album ? ` · ${currentTrack.album}` : ""}`
               : t.waveStandby}
@@ -456,6 +459,20 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
                 }`}
               >
                 <IconHeart size={18} filled={currentTrack.liked} />
+              </button>
+            )}
+            {activeWave && currentTrack && onDislikeWave && (
+              <button
+                type="button"
+                onClick={onDislikeWave}
+                title={language === "ru" ? "Не нравится (пропустить)" : "Dislike (skip)"}
+                aria-label="Dislike track"
+                className="p-2 rounded-full text-slate-300 hover:text-rose-300 hover:bg-white/[0.08] transition-colors cursor-pointer"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17 14V2" />
+                  <path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z" />
+                </svg>
               </button>
             )}
             <button

@@ -30,6 +30,19 @@ export interface LyricLine {
   words?: LyricWord[];
 }
 
+export interface CacheStats {
+  totalBytes: number;
+  fileCount: number;
+}
+
+export interface UpdateCheckResult {
+  currentVersion: string;
+  latestVersion: string;
+  hasUpdate: boolean;
+  releaseUrl: string;
+  releaseName: string;
+}
+
 export interface LyricsPayload {
   synced: boolean;
   instrumental: boolean;

@@ -46,9 +46,32 @@ pub fn delete_tracks(state: State<'_, AppState>, track_ids: Vec<String>) -> Resu
 }
 
 #[tauri::command]
-pub fn clear_library(state: State<'_, AppState>) -> Result<(), String> {
+pub fn clear_library(
+    state: State<'_, AppState>,
+    scope: Option<String>,
+    playlist_id: Option<String>,
+) -> Result<(), String> {
+    if let Some(pid) = playlist_id.filter(|s| !s.trim().is_empty()) {
+        return state.db.clear_playlist_tracks(&pid);
+    }
+    match scope.as_deref() {
+        Some("local") => state.db.delete_source_tracks(SourceKind::Local),
+        Some("yandex") => state.db.delete_source_tracks(SourceKind::Yandex),
+        Some("spotify") => state.db.delete_source_tracks(SourceKind::Spotify),
+        Some("soundcloud") => state.db.delete_source_tracks(SourceKind::SoundCloud),
+        Some("favorites") => state.db.clear_favorites(),
+        _ => {
+            state.engine.stop();
+            state.db.clear_library()
+        }
+    }
+}
+
+#[tauri::command]
+pub fn wipe_app_data(state: State<'_, AppState>, keep_credentials: bool) -> Result<(), String> {
     state.engine.stop();
-    state.db.clear_library()
+    clear_dir_files(&state.cache_dir);
+    state.db.wipe_all_data(keep_credentials)
 }
 
 #[tauri::command]
@@ -110,8 +133,95 @@ pub fn delete_playlist(state: State<'_, AppState>, playlist_id: String) -> Resul
 }
 
 #[tauri::command]
-pub fn toggle_track_like(state: State<'_, AppState>, track_id: String) -> Result<bool, String> {
-    state.db.toggle_like(&track_id)
+pub fn toggle_track_like(
+    state: State<'_, AppState>,
+    track_id: String,
+    track: Option<Track>,
+) -> Result<bool, String> {
+    if let Some(ref tr) = track {
+        let existing = state
+            .db
+            .get_tracks(None, None)
+            .ok()
+            .map(|list| list.into_iter().any(|x| x.id == track_id))
+            .unwrap_or(false);
+        if !existing {
+            let _ = state.db.upsert_tracks(std::slice::from_ref(tr));
+        }
+    }
+    let liked = state.db.toggle_like(&track_id)?;
+    let info = track.or_else(|| {
+        state
+            .db
+            .get_tracks(None, None)
+            .ok()
+            .and_then(|list| list.into_iter().find(|x| x.id == track_id))
+    });
+    if let Some(tr) = info {
+        let http = state.http.clone();
+        match tr.source {
+            SourceKind::Yandex => {
+                if let Ok(Some((Some(tok), _, _, _))) = state.db.get_credentials(SourceKind::Yandex) {
+                    let ext = tr.external_id.clone();
+                    tauri::async_runtime::spawn(async move {
+                        let _ = yandex::set_track_like(&http, &tok, &ext, liked).await;
+                        let fb = if liked { "like" } else { "unlike" };
+                        yandex::send_wave_feedback(&http, &tok, fb, Some(&ext), None).await;
+                    });
+                }
+            }
+            SourceKind::SoundCloud => {
+                if let Ok(Some((tok_opt, cid_opt, _, _))) =
+                    state.db.get_credentials(SourceKind::SoundCloud)
+                {
+                    if let (Some(tok), Some(cid)) = (tok_opt, cid_opt) {
+                        let ext = tr.external_id.clone();
+                        tauri::async_runtime::spawn(async move {
+                            let _ = soundcloud::set_track_like(
+                                &http,
+                                Some(tok.as_str()),
+                                &cid,
+                                &ext,
+                                liked,
+                            )
+                            .await;
+                        });
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    Ok(liked)
+}
+
+#[tauri::command]
+pub async fn dislike_wave_track(state: State<'_, AppState>, track: Track) -> Result<(), String> {
+    let key = format!(
+        "{}|{}",
+        track.title.trim().to_lowercase(),
+        track.artist.trim().to_lowercase()
+    );
+    yandex::load_wave_seen(vec![track.external_id.clone(), key.clone()]);
+    soundcloud::load_wave_seen(vec![track.external_id.clone(), key.clone()]);
+    let mut combined = yandex::dump_wave_seen();
+    combined.extend(soundcloud::dump_wave_seen());
+    if let Ok(json_s) = serde_json::to_string(&combined) {
+        let _ = state.db.save_setting("wave_seen_v1", &json_s);
+    }
+    if track.source == SourceKind::Yandex {
+        if let Ok(Some((Some(tok), _, _, _))) = state.db.get_credentials(SourceKind::Yandex) {
+            yandex::send_wave_feedback(
+                &state.http,
+                &tok,
+                "dislike",
+                Some(&track.external_id),
+                Some(2.0),
+            )
+            .await;
+        }
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -287,7 +397,11 @@ fn score_spotify_candidate(target: &Track, cand: &Track) -> Option<i32> {
         }
     }
 
-    if score >= 50 {
+    if !a_tokens.is_empty() && !c_combined.contains(&a_tokens[0]) {
+        return None;
+    }
+
+    if score >= 60 {
         Some(score)
     } else {
         None
@@ -297,7 +411,6 @@ fn score_spotify_candidate(target: &Track, cand: &Track) -> Option<i32> {
 #[tauri::command]
 pub async fn play_track(state: State<'_, AppState>, track: Track) -> Result<(), String> {
     let seq = state.play_seq.fetch_add(1, Ordering::SeqCst) + 1;
-    let _ = state.db.upsert_tracks(std::slice::from_ref(&track));
     let codec_label = track.codec.clone().unwrap_or_else(|| "AUDIO".to_string());
     let bitrate = track.bitrate_kbps.unwrap_or(0);
 
@@ -491,10 +604,10 @@ pub async fn play_track(state: State<'_, AppState>, track: Track) -> Result<(), 
                 if let Some(p) = resolved_path {
                     p
                 } else {
-                    let preview = track
-                        .stream_url
-                        .as_ref()
-                        .ok_or_else(|| "No full match found and track has no Spotify preview".to_string())?;
+                    let preview = track.stream_url.as_ref().ok_or_else(|| {
+                        "[SPOTIFY_NOT_FOUND] Точная копия трека не найдена в подключённых сервисах"
+                            .to_string()
+                    })?;
                     providers::download_to_cache(
                         &state.http,
                         &state.cache_dir,
@@ -1277,6 +1390,13 @@ pub async fn get_wave_tracks(
     source: String,
     reset: Option<bool>,
 ) -> Result<Vec<Track>, String> {
+    if let Ok(Some(saved_seen)) = state.db.get_setting("wave_seen_v1") {
+        if let Ok(ids) = serde_json::from_str::<Vec<String>>(&saved_seen) {
+            yandex::load_wave_seen(ids.clone());
+            soundcloud::load_wave_seen(ids);
+        }
+    }
+
     let want_ym = source == "yandex" || source == "mix";
     let want_sc = source == "soundcloud" || source == "mix";
 
@@ -1333,7 +1453,18 @@ pub async fn get_wave_tracks(
                 mixed.push(t.clone());
             }
         }
+        let mut combined = yandex::dump_wave_seen();
+        combined.extend(soundcloud::dump_wave_seen());
+        if let Ok(json_s) = serde_json::to_string(&combined) {
+            let _ = state.db.save_setting("wave_seen_v1", &json_s);
+        }
         return Ok(mixed);
+    }
+
+    let mut combined = yandex::dump_wave_seen();
+    combined.extend(soundcloud::dump_wave_seen());
+    if let Ok(json_s) = serde_json::to_string(&combined) {
+        let _ = state.db.save_setting("wave_seen_v1", &json_s);
     }
 
     if want_ym {
@@ -1476,4 +1607,121 @@ pub async fn set_zapret_enabled(
         zapret::stop_zapret();
         Ok(zapret::get_status(&state.data_dir))
     }
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CacheStats {
+    pub total_bytes: u64,
+    pub file_count: usize,
+}
+
+fn dir_stats(dir: &std::path::Path) -> (u64, usize) {
+    let mut bytes = 0u64;
+    let mut count = 0usize;
+    if let Ok(rd) = std::fs::read_dir(dir) {
+        for entry in rd.flatten() {
+            let p = entry.path();
+            if p.is_dir() {
+                let (b, c) = dir_stats(&p);
+                bytes += b;
+                count += c;
+            } else if let Ok(meta) = entry.metadata() {
+                bytes += meta.len();
+                count += 1;
+            }
+        }
+    }
+    (bytes, count)
+}
+
+#[tauri::command]
+pub fn get_cache_stats(state: State<'_, AppState>) -> CacheStats {
+    let (total_bytes, file_count) = dir_stats(&state.cache_dir);
+    CacheStats {
+        total_bytes,
+        file_count,
+    }
+}
+
+fn clear_dir_files(dir: &std::path::Path) {
+    if let Ok(rd) = std::fs::read_dir(dir) {
+        for entry in rd.flatten() {
+            let p = entry.path();
+            if p.is_dir() {
+                clear_dir_files(&p);
+            } else {
+                let _ = std::fs::remove_file(&p);
+            }
+        }
+    }
+}
+
+#[tauri::command]
+pub fn clear_cache(state: State<'_, AppState>) -> CacheStats {
+    clear_dir_files(&state.cache_dir);
+    let (total_bytes, file_count) = dir_stats(&state.cache_dir);
+    CacheStats {
+        total_bytes,
+        file_count,
+    }
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateCheckResult {
+    pub current_version: String,
+    pub latest_version: String,
+    pub has_update: bool,
+    pub release_url: String,
+    pub release_name: String,
+}
+
+fn parse_ver_tuple(v: &str) -> (u64, u64, u64) {
+    let clean = v.trim().trim_start_matches('v').trim_start_matches('V');
+    let mut parts = clean.split('.').map(|p| p.parse::<u64>().unwrap_or(0));
+    (
+        parts.next().unwrap_or(0),
+        parts.next().unwrap_or(0),
+        parts.next().unwrap_or(0),
+    )
+}
+
+#[tauri::command]
+pub async fn check_for_updates(state: State<'_, AppState>) -> Result<UpdateCheckResult, String> {
+    let current_version = env!("CARGO_PKG_VERSION").to_string();
+    let resp = state
+        .http
+        .get("https://api.github.com/repos/Mono-no-Awares/Awase/releases/latest")
+        .header("User-Agent", "Awase/0.1.0")
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        return Err(format!("GitHub API HTTP {}", resp.status()));
+    }
+    let json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+    let latest_version = json
+        .get("tag_name")
+        .and_then(|v| v.as_str())
+        .unwrap_or(&current_version)
+        .to_string();
+    let release_url = json
+        .get("html_url")
+        .and_then(|v| v.as_str())
+        .unwrap_or("https://github.com/Mono-no-Awares/Awase/releases")
+        .to_string();
+    let release_name = json
+        .get("name")
+        .and_then(|v| v.as_str())
+        .unwrap_or(&latest_version)
+        .to_string();
+    let has_update = parse_ver_tuple(&latest_version) > parse_ver_tuple(&current_version);
+    Ok(UpdateCheckResult {
+        current_version,
+        latest_version,
+        has_update,
+        release_url,
+        release_name,
+    })
 }

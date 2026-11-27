@@ -304,6 +304,18 @@ pub struct AudioEngine {
     fft_planner: Mutex<FftPlanner<f32>>,
 }
 
+fn fade_sink(s: &Sink, from: f32, to: f32, steps: u32, step_ms: u64) {
+    if steps == 0 {
+        s.set_volume(to);
+        return;
+    }
+    for i in 1..=steps {
+        let t = i as f32 / steps as f32;
+        s.set_volume(from + (to - from) * t);
+        std::thread::sleep(Duration::from_millis(step_ms));
+    }
+}
+
 impl AudioEngine {
     pub fn new(
         app: AppHandle,
@@ -408,17 +420,22 @@ impl AudioEngine {
                                     .unwrap_or(known_duration_ms);
                                 let f32_src = decoder.convert_samples::<f32>();
                                 let dsp_src = DspSpectrumSource::new(f32_src, Arc::clone(&shared_t));
+                                if let Some(old) = active_sink.take() {
+                                    let cur_vol = old.volume();
+                                    if !old.is_paused() && cur_vol > 0.01 {
+                                        fade_sink(&old, cur_vol, 0.0, 5, 16);
+                                    }
+                                    old.stop();
+                                }
                                 let sink = Sink::try_new(handle).map_err(|e| e.to_string())?;
                                 let eff_vol = if muted_t.load(Ordering::SeqCst) {
                                     0.0
                                 } else {
                                     *volume_t.lock()
                                 };
-                                sink.set_volume(eff_vol);
+                                sink.set_volume(0.0);
                                 sink.append(dsp_src);
-                                if let Some(old) = active_sink.take() {
-                                    old.stop();
-                                }
+                                fade_sink(&sink, 0.0, eff_vol, 5, 14);
                                 active_sink = Some(sink);
                                 *current_track_id_t.lock() = Some(track_id);
                                 position_ms_t.store(0, Ordering::SeqCst);
@@ -435,19 +452,35 @@ impl AudioEngine {
                         }
                         AudioCommand::Pause => {
                             if let Some(s) = active_sink.as_ref() {
+                                let cur_vol = s.volume();
+                                if !s.is_paused() && cur_vol > 0.01 {
+                                    fade_sink(s, cur_vol, 0.0, 6, 18);
+                                }
                                 s.pause();
+                                s.set_volume(cur_vol);
                                 is_playing_t.store(false, Ordering::SeqCst);
                             }
                         }
                         AudioCommand::Resume => {
                             if let Some(s) = active_sink.as_ref() {
+                                let target_vol = if muted_t.load(Ordering::SeqCst) {
+                                    0.0
+                                } else {
+                                    *volume_t.lock()
+                                };
+                                s.set_volume(0.0);
                                 s.play();
+                                fade_sink(s, 0.0, target_vol, 6, 16);
                                 is_playing_t.store(true, Ordering::SeqCst);
                             }
                         }
                         AudioCommand::Stop => {
                             ended_notified = true;
                             if let Some(s) = active_sink.take() {
+                                let cur_vol = s.volume();
+                                if !s.is_paused() && cur_vol > 0.01 {
+                                    fade_sink(&s, cur_vol, 0.0, 5, 16);
+                                }
                                 s.stop();
                             }
                             position_ms_t.store(0, Ordering::SeqCst);

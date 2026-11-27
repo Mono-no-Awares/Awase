@@ -3,6 +3,7 @@ import type {
   AppLanguage,
   AppPreferences,
   AudioDevice,
+  CacheStats,
   EqualizerState,
   FontFamilyChoice,
   FontScale,
@@ -11,6 +12,7 @@ import type {
   MotionStyle,
   SourceKind,
   SourceStatus,
+  UpdateCheckResult,
   ZapretStatus,
 } from "../types";
 import { api } from "../lib/ipc";
@@ -58,6 +60,7 @@ interface SourcesViewProps {
   onUpdateEq: (state: EqualizerState) => void;
   onExportBackup: () => void;
   onImportBackup: () => void;
+  onWipeData: (keepCredentials: boolean) => Promise<void>;
   onOpenExternalUrl: (url: string) => void;
 }
 
@@ -90,6 +93,7 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
   onUpdateEq,
   onExportBackup,
   onImportBackup,
+  onWipeData,
   onOpenExternalUrl,
 }) => {
   const [expanded, setExpanded] = useState<SourceKind | null>(null);
@@ -117,6 +121,41 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
     }, 550);
     return () => window.clearInterval(id);
   }, [zapretBusy]);
+
+  const [cacheStats, setCacheStats] = useState<CacheStats | null>(null);
+  const [cacheClearing, setCacheClearing] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<UpdateCheckResult | null>(null);
+  const [updateBusy, setUpdateBusy] = useState(false);
+  const [updateErr, setUpdateErr] = useState<string | null>(null);
+  const [wipeModalOpen, setWipeModalOpen] = useState(false);
+  const [wipeBusy, setWipeBusy] = useState(false);
+
+  useEffect(() => {
+    api.getCacheStats().then(setCacheStats).catch(() => {});
+  }, []);
+
+  const handleClearCache = async () => {
+    setCacheClearing(true);
+    try {
+      const next = await api.clearCache();
+      setCacheStats(next);
+    } finally {
+      setCacheClearing(false);
+    }
+  };
+
+  const handleCheckUpdates = async () => {
+    setUpdateBusy(true);
+    setUpdateErr(null);
+    try {
+      const res = await api.checkForUpdates();
+      setUpdateInfo(res);
+    } catch (err) {
+      setUpdateErr(String(err));
+    } finally {
+      setUpdateBusy(false);
+    }
+  };
 
   const handleInstallZapret = async () => {
     setZapretBusy(true);
@@ -1036,6 +1075,98 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
                   {t.importBackup}
                 </button>
               </div>
+
+              <div className="pt-2 border-t border-white/[0.08] flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-xs font-medium text-white">
+                    {preferences.language === "ru" ? "Кэш аудио и обложек" : "Audio & Cover Cache"}
+                  </div>
+                  <div className="text-[11px] text-slate-400">
+                    {cacheStats
+                      ? `${(cacheStats.totalBytes / (1024 * 1024)).toFixed(1)} MB · ${cacheStats.fileCount} ${
+                          preferences.language === "ru" ? "файлов" : "files"
+                        }`
+                      : "—"}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  disabled={cacheClearing}
+                  onClick={handleClearCache}
+                  className="px-3 py-1.5 rounded-xl bg-white/[0.08] hover:bg-white/[0.14] border border-white/[0.12] text-[11px] font-medium text-white shrink-0 transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+                >
+                  {cacheClearing
+                    ? preferences.language === "ru"
+                      ? "Очистка..."
+                      : "Clearing..."
+                    : preferences.language === "ru"
+                      ? "Очистить кэш"
+                      : "Clear Cache"}
+                </button>
+              </div>
+
+              <div className="pt-2 border-t border-white/[0.08] space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium text-white">
+                      {preferences.language === "ru" ? "Обновления Awase" : "Awase Updates"}
+                    </div>
+                    <div className="text-[11px] text-slate-400 truncate">
+                      {updateInfo
+                        ? updateInfo.hasUpdate
+                          ? `${preferences.language === "ru" ? "Доступна версия" : "Available"}: ${updateInfo.latestVersion}`
+                          : `${preferences.language === "ru" ? "Установлена актуальная версия" : "Up to date"} (${updateInfo.latestVersion})`
+                        : "GitHub: Mono-no-Awares/Awase"}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {updateInfo?.hasUpdate && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenExternalUrl(updateInfo.releaseUrl)}
+                        className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/30 text-[11px] font-medium text-emerald-200 transition-all cursor-pointer"
+                      >
+                        {preferences.language === "ru" ? "Скачать" : "Download"}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      disabled={updateBusy}
+                      onClick={handleCheckUpdates}
+                      className="px-3 py-1.5 rounded-xl bg-white/[0.08] hover:bg-white/[0.14] border border-white/[0.12] text-[11px] font-medium text-white transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+                    >
+                      {updateBusy
+                        ? preferences.language === "ru"
+                          ? "Проверка..."
+                          : "Checking..."
+                        : preferences.language === "ru"
+                          ? "Проверить"
+                          : "Check"}
+                    </button>
+                  </div>
+                </div>
+                {updateErr && <div className="text-[11px] text-rose-300">{updateErr}</div>}
+              </div>
+
+              <div className="pt-2 border-t border-white/[0.08] flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-xs font-medium text-rose-200">
+                    {preferences.language === "ru" ? "Удалить все данные" : "Reset App Data"}
+                  </div>
+                  <div className="text-[11px] text-slate-400">
+                    {preferences.language === "ru"
+                      ? "Очистка треков, плейлистов или полный сброс"
+                      : "Delete tracks & playlists or full factory reset"}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setWipeModalOpen(true)}
+                  className="px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-[11px] font-medium text-rose-200 shrink-0 transition-all duration-200 active:scale-95 cursor-pointer"
+                >
+                  {preferences.language === "ru" ? "Удалить..." : "Reset..."}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1120,6 +1251,93 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
           <span>github.com/Mono-no-Awares</span>
         </button>
       </div>
+
+      {wipeModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4 awase-view-enter"
+          onClick={() => !wipeBusy && setWipeModalOpen(false)}
+        >
+          <div
+            className="awase-menu-pop w-full max-w-md rounded-2xl bg-[#11131A]/95 border border-white/[0.12] shadow-[0_24px_64px_rgba(0,0,0,0.85)] p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="space-y-1">
+              <h3 className="font-display text-base font-bold text-white">
+                {preferences.language === "ru" ? "Удалить данные Awase?" : "Delete Awase Data?"}
+              </h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                {preferences.language === "ru"
+                  ? "Выберите, нужно ли сохранить подключённые аккаунты Яндекс Музыки, Spotify и SoundCloud."
+                  : "Choose whether to keep your connected Yandex Music, Spotify, and SoundCloud accounts."}
+              </p>
+            </div>
+            <div className="space-y-2.5">
+              <button
+                type="button"
+                disabled={wipeBusy}
+                onClick={async () => {
+                  setWipeBusy(true);
+                  try {
+                    await onWipeData(true);
+                    api.getCacheStats().then(setCacheStats).catch(() => {});
+                    setWipeModalOpen(false);
+                  } finally {
+                    setWipeBusy(false);
+                  }
+                }}
+                className="w-full text-left px-4 py-3 rounded-xl bg-white/[0.06] hover:bg-white/[0.11] border border-white/[0.1] transition-all duration-200 active:scale-[0.98] cursor-pointer disabled:opacity-50"
+              >
+                <div className="text-xs font-semibold text-white">
+                  {preferences.language === "ru"
+                    ? "Удалить всё, кроме подключённых сервисов"
+                    : "Delete everything except connected accounts"}
+                </div>
+                <div className="text-[11px] text-slate-400 mt-0.5">
+                  {preferences.language === "ru"
+                    ? "Удалит все треки, плейлисты, папки, историю волны и кэш"
+                    : "Removes all tracks, playlists, folders, wave history & cache"}
+                </div>
+              </button>
+              <button
+                type="button"
+                disabled={wipeBusy}
+                onClick={async () => {
+                  setWipeBusy(true);
+                  try {
+                    await onWipeData(false);
+                    api.getCacheStats().then(setCacheStats).catch(() => {});
+                    setWipeModalOpen(false);
+                  } finally {
+                    setWipeBusy(false);
+                  }
+                }}
+                className="w-full text-left px-4 py-3 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 transition-all duration-200 active:scale-[0.98] cursor-pointer disabled:opacity-50"
+              >
+                <div className="text-xs font-semibold text-rose-200">
+                  {preferences.language === "ru"
+                    ? "Удалить абсолютно всё (включая авторизации)"
+                    : "Delete everything (including logins & tokens)"}
+                </div>
+                <div className="text-[11px] text-rose-300/75 mt-0.5">
+                  {preferences.language === "ru"
+                    ? "Полный сброс приложения к состоянию после установки"
+                    : "Full factory reset of all tracks, accounts, and settings"}
+                </div>
+              </button>
+            </div>
+            <div className="flex justify-end pt-1">
+              <button
+                type="button"
+                disabled={wipeBusy}
+                onClick={() => setWipeModalOpen(false)}
+                className="px-4 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-xs font-medium text-slate-300 hover:text-white transition-all cursor-pointer"
+              >
+                {preferences.language === "ru" ? "Отмена" : "Cancel"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

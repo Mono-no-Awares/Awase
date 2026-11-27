@@ -452,6 +452,40 @@ impl Database {
         Ok(())
     }
 
+    pub fn clear_favorites(&self) -> Result<(), String> {
+        let conn = self.conn.lock();
+        conn.execute("UPDATE tracks SET liked = 0 WHERE liked = 1", [])
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    pub fn clear_playlist_tracks(&self, playlist_id: &str) -> Result<(), String> {
+        let conn = self.conn.lock();
+        conn.execute(
+            "DELETE FROM playlist_tracks WHERE playlist_id = ?1",
+            params![playlist_id],
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    pub fn wipe_all_data(&self, keep_credentials: bool) -> Result<(), String> {
+        let conn = self.conn.lock();
+        conn.execute_batch(
+            "DELETE FROM playlist_tracks;
+             DELETE FROM playlists;
+             DELETE FROM tracks;
+             DELETE FROM local_folders;
+             DELETE FROM settings WHERE key = 'wave_seen_v1';",
+        )
+        .map_err(|e| e.to_string())?;
+        if !keep_credentials {
+            conn.execute_batch("DELETE FROM credentials; DELETE FROM settings;")
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+
     pub fn save_setting(&self, key: &str, value: &str) -> Result<(), String> {
         let conn = self.conn.lock();
         conn.execute(

@@ -378,6 +378,39 @@ export const App: React.FC = () => {
           }
           return;
         }
+        const isSpotifyMissing =
+          track.source === "spotify" && msg.includes("[SPOTIFY_NOT_FOUND]");
+        if (isSpotifyMissing) {
+          notify(
+            preferences.language === "ru"
+              ? "Точная копия трека Spotify не найдена"
+              : "Exact match for Spotify track not found",
+            "error"
+          );
+          if (queue.length > 1 && consecSkipRef.current < 4) {
+            consecSkipRef.current += 1;
+            window.setTimeout(() => handleNextRef.current(), 450);
+          }
+          return;
+        }
+        const isYandexUnavailable =
+          track.source === "yandex" &&
+          (msg.includes("HTTP 404") ||
+            msg.includes("HTTP 403") ||
+            msg.includes("No Yandex stream"));
+        if (isYandexUnavailable) {
+          notify(
+            preferences.language === "ru"
+              ? "Трек Яндекса недоступен — пропускаю"
+              : "Yandex track unavailable — skipping",
+            "info"
+          );
+          if (consecSkipRef.current < 4) {
+            consecSkipRef.current += 1;
+            window.setTimeout(() => handleNextRef.current(), 250);
+          }
+          return;
+        }
         notify(msg, "error");
         if (track.source === "soundcloud") {
           setScRetryTrack(track);
@@ -659,16 +692,37 @@ export const App: React.FC = () => {
 
   const handleToggleLike = async (trackId: string) => {
     try {
-      const liked = await api.toggleTrackLike(trackId);
+      const trackObj =
+        queue.find((x) => x.id === trackId) ||
+        tracks.find((x) => x.id === trackId) ||
+        playlistTracks.find((x) => x.id === trackId) ||
+        searchResults?.find((x) => x.id === trackId);
+      const liked = await api.toggleTrackLike(trackId, trackObj);
       const patch = (arr: Track[]) =>
         arr.map((item) => (item.id === trackId ? { ...item, liked } : item));
       setTracks(patch);
       setPlaylistTracks(patch);
       setQueue(patch);
       if (searchResults) setSearchResults(patch(searchResults));
+      if (liked && trackObj && !tracks.some((x) => x.id === trackId)) {
+        setTracks((prev) => [{ ...trackObj, liked: true }, ...prev]);
+      }
     } catch (err) {
       notify(String(err), "error");
     }
+  };
+
+  const handleDislikeWave = async () => {
+    if (!currentTrack) return;
+    const target = currentTrack;
+    notify(
+      preferences.language === "ru"
+        ? "Больше не буду предлагать этот трек"
+        : "Won't recommend this track again",
+      "info"
+    );
+    api.dislikeWaveTrack(target).catch(() => {});
+    await handleNext();
   };
 
   const filteredLibraryTracks = useMemo(() => {
@@ -827,6 +881,7 @@ export const App: React.FC = () => {
               onChangeWaveSource={setWaveSource}
               onStartWave={handleStartWave}
               onStopWave={() => setActiveWave(null)}
+              onDislikeWave={handleDislikeWave}
               onOpenLyrics={() => setLyricsOpen(true)}
               onTogglePlay={handleTogglePlay}
               onPrev={handlePrev}
@@ -922,10 +977,22 @@ export const App: React.FC = () => {
                 await refreshLibrary();
               }}
               onClearLibrary={async () => {
-                await api.clearLibrary();
-                setQueue([]);
-                setCurrentIndex(-1);
+                const scope =
+                  !selectedPlaylistId && sourceFilter !== "all" ? sourceFilter : undefined;
+                const plId = selectedPlaylistId ?? undefined;
+                await api.clearLibrary(scope, plId);
+                if (!scope && !plId) {
+                  setQueue([]);
+                  setCurrentIndex(-1);
+                }
                 await refreshLibrary();
+                if (plId) {
+                  api.getPlaylistTracks(plId).then(setPlaylistTracks).catch(() => {});
+                }
+                notify(
+                  preferences.language === "ru" ? "Список очищен" : "Cleared",
+                  "info"
+                );
               }}
               onRescanLocal={handleRescanLocal}
               onAddLocalFolder={handleAddLocalFolder}
@@ -1111,6 +1178,24 @@ export const App: React.FC = () => {
                 } catch (err) {
                   notify(String(err), "error");
                 }
+              }}
+              onWipeData={async (keepCredentials) => {
+                await api.wipeAppData(keepCredentials);
+                setQueue([]);
+                setCurrentIndex(-1);
+                setActiveWave(null);
+                waveSeenIdsRef.current.clear();
+                await refreshLibrary();
+                notify(
+                  preferences.language === "ru"
+                    ? keepCredentials
+                      ? "Треки и плейлисты удалены (аккаунты сохранены)"
+                      : "Все данные приложения удалены"
+                    : keepCredentials
+                      ? "Library & playlists wiped (accounts kept)"
+                      : "All app data wiped",
+                  "info"
+                );
               }}
               onOpenExternalUrl={(url) =>
                 api.openExternalUrl(url).catch((e) => notify(String(e), "error"))

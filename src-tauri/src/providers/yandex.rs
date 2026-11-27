@@ -16,6 +16,49 @@ struct WaveSession {
 
 static WAVE_SESSION: Mutex<Option<WaveSession>> = Mutex::new(None);
 
+pub fn load_wave_seen(ids: Vec<String>) {
+    let mut guard = WAVE_SESSION.lock();
+    let sess = guard.get_or_insert_with(|| WaveSession {
+        batch_id: None,
+        last_track_id: None,
+        seen_ids: HashSet::new(),
+    });
+    for id in ids {
+        sess.seen_ids.insert(id);
+    }
+}
+
+pub fn dump_wave_seen() -> Vec<String> {
+    let guard = WAVE_SESSION.lock();
+    guard
+        .as_ref()
+        .map(|s| s.seen_ids.iter().take(800).cloned().collect())
+        .unwrap_or_default()
+}
+
+pub async fn set_track_like(
+    client: &Client,
+    token: &str,
+    track_id: &str,
+    liked: bool,
+) -> Result<(), String> {
+    let (uid, _) = fetch_account_status(client, token).await?;
+    let action = if liked { "add" } else { "remove" };
+    let url = format!("{}/users/{}/likes/tracks/{}", YM_API, uid, action);
+    let resp = client
+        .post(url)
+        .header("Authorization", format!("OAuth {}", token))
+        .header("X-Yandex-Music-Client", "YandexMusicAndroid/24023621")
+        .form(&[("track-ids", track_id)])
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        return Err(format!("Yandex like HTTP {}", resp.status()));
+    }
+    Ok(())
+}
+
 pub async fn fetch_account_status(client: &Client, token: &str) -> Result<(String, String), String> {
     let resp = client
         .get(format!("{}/account/status", YM_API))

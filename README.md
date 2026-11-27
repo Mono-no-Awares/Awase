@@ -96,6 +96,12 @@ The standalone executable and NSIS installer will be generated in `src-tauri/tar
 
 ---
 
+## Contributors
+
+- **[StrongDeep01](https://github.com/StrongDeep01)** — QA & Beta Testing (SoundCloud, Yandex My Wave, Lyrics, Discord RPC)
+
+---
+
 ## License
 
 **PolyForm Noncommercial License 1.0.0** © [Mono-no-Awares](https://github.com/Mono-no-Awares) — see [LICENSE](LICENSE) and [NOTICE](NOTICE).

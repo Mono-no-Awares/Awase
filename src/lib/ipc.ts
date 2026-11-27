@@ -93,8 +93,8 @@ export const api = {
   }) => invoke<void>("update_discord_presence", payload),
   exportUserBackup: (filePath: string) => invoke<void>("export_user_backup", { filePath }),
   importUserBackup: (filePath: string) => invoke<string | null>("import_user_backup", { filePath }),
-  getWaveTracks: (source: "yandex" | "soundcloud" | "mix") =>
-    invoke<Track[]>("get_wave_tracks", { source }),
+  getWaveTracks: (source: "yandex" | "soundcloud" | "mix", reset?: boolean) =>
+    invoke<Track[]>("get_wave_tracks", { source, reset }),
   getZapretStatus: () => invoke<ZapretStatus>("get_zapret_status"),
   installZapret: () => invoke<ZapretStatus>("install_zapret"),
   setZapretEnabled: (enabled: boolean) => invoke<ZapretStatus>("set_zapret_enabled", { enabled }),

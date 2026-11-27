@@ -24,10 +24,38 @@ use crate::db::Database;
 extern "system" {
     fn GetWindowLongPtrW(hwnd: isize, n_index: i32) -> isize;
     fn SetWindowLongPtrW(hwnd: isize, n_index: i32, new_long: isize) -> isize;
+    fn CreateMutexW(lp_mutex_attributes: *const std::ffi::c_void, b_initial_owner: i32, lp_name: *const u16) -> isize;
+    fn GetLastError() -> u32;
+    fn FindWindowW(lp_class_name: *const u16, lp_window_name: *const u16) -> isize;
+    fn ShowWindow(hwnd: isize, n_cmd_show: i32) -> i32;
+    fn SetForegroundWindow(hwnd: isize) -> i32;
+}
+
+#[cfg(windows)]
+fn ensure_single_instance() {
+    let mut mutex_name: Vec<u16> = "Local\\AwaseSingleInstanceMutex".encode_utf16().collect();
+    mutex_name.push(0);
+    unsafe {
+        let handle = CreateMutexW(std::ptr::null(), 0, mutex_name.as_ptr());
+        if handle != 0 && GetLastError() == 183 {
+            let mut win_title: Vec<u16> = "Awase".encode_utf16().collect();
+            win_title.push(0);
+            let hwnd = FindWindowW(std::ptr::null(), win_title.as_ptr());
+            if hwnd != 0 {
+                ShowWindow(hwnd, 9);
+                SetForegroundWindow(hwnd);
+            }
+            std::process::exit(0);
+        }
+        std::mem::forget(handle);
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(windows)]
+    ensure_single_instance();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {

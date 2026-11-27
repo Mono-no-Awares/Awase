@@ -223,7 +223,7 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
                   {isConnected && (
                     <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 text-[11px] font-medium">
                       <IconCheck size={11} />
-                      <span>{src === "soundcloud" ? t.ready : t.connected}</span>
+                      <span>{t.connected}</span>
                     </span>
                   )}
                   <span
@@ -1054,7 +1054,7 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
               onClick={() => onUpdateEq({ ...eqState, enabled: !eqState.enabled })}
               className="inline-flex items-center gap-2 text-xs font-medium text-slate-200 cursor-pointer"
             >
-              <span>{t.eqOn}</span>
+              <span>{eqState.enabled ? t.eqOn : preferences.language === "ru" ? "Выкл" : "Off"}</span>
               <span
                 className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 flex items-center ${
                   eqState.enabled ? "bg-cyanpulse" : "bg-white/[0.15]"

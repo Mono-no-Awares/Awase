@@ -18,6 +18,7 @@ import {
   IconResonance,
   SourceIcon,
 } from "./AwaseIcons";
+import { CoverArt } from "./CoverArt";
 import { TrackList } from "./TrackList";
 import { VisualizerCanvas } from "./VisualizerCanvas";
 
@@ -91,15 +92,11 @@ export const StageView: React.FC<StageViewProps> = ({
                 className="w-24 h-24 rounded-2xl overflow-hidden shrink-0 border border-white/[0.14] bg-[#14151B] flex items-center justify-center transition-shadow duration-700"
                 style={{ boxShadow: `0 18px 40px -10px ${coverPalette.glow}` }}
               >
-                {currentTrack.coverUrl ? (
-                  <img
-                    src={currentTrack.coverUrl}
-                    alt={currentTrack.title}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <SourceIcon source={activeMeta.id} size={34} />
-                )}
+                <CoverArt
+                  url={currentTrack.coverUrl}
+                  alt={currentTrack.title}
+                  fallback={<SourceIcon source={activeMeta.id} size={34} />}
+                />
               </div>
             )}
 

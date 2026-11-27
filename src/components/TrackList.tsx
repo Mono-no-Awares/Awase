@@ -14,6 +14,7 @@ import {
   IconPlus,
   SourceIcon,
 } from "./AwaseIcons";
+import { CoverArt } from "./CoverArt";
 
 export type SortField = "added" | "title" | "album" | "duration";
 export type SortDir = "asc" | "desc";
@@ -268,17 +269,11 @@ export const TrackList: React.FC<TrackListProps> = ({
 
               <div className="flex items-center gap-3 min-w-0 pr-3">
                 <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 bg-[#101217] border border-white/[0.08] flex items-center justify-center">
-                  {track.coverUrl ? (
-                    <img
-                      src={track.coverUrl}
-                      alt={track.title}
-                      loading="lazy"
-                      decoding="async"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <SourceIcon source={track.source} size={20} />
-                  )}
+                  <CoverArt
+                    url={track.coverUrl}
+                    alt={track.title}
+                    fallback={<SourceIcon source={track.source} size={20} />}
+                  />
                 </div>
 
                 <div className="min-w-0 flex-1">

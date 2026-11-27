@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open, save } from "@tauri-apps/plugin-dialog";
@@ -137,6 +137,11 @@ export const App: React.FC = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [busySource, setBusySource] = useState<string | null>(null);
   const [toast, setToast] = useState<{ text: string; tone: "info" | "error" } | null>(null);
+  const consecSkipRef = useRef(0);
+  const waveSeenIdsRef = useRef<Set<string>>(new Set());
+  const lastRpcTrackIdRef = useRef<string | null>(null);
+  const lastRpcPosRef = useRef<{ pos: number; ts: number }>({ pos: 0, ts: 0 });
+  const handleNextRef = useRef<() => void>(() => {});
 
   const [telemetry, setTelemetry] = useState<AudioTelemetry>(INITIAL_TELEMETRY);
   const [coverPalette, setCoverPalette] = useState<CoverPalette>({
@@ -286,21 +291,45 @@ export const App: React.FC = () => {
     currentTrack,
   ]);
 
+  const pushDiscordPresence = useCallback(
+    (posOverrideMs?: number) => {
+      const posMs = posOverrideMs ?? telemetry.positionMs;
+      lastRpcPosRef.current = { pos: posMs, ts: performance.now() };
+      api
+        .updateDiscordPresence({
+          enabled: preferences.discordRpc,
+          appId: preferences.discordAppId,
+          title: currentTrack?.title ?? null,
+          artist: currentTrack?.artist ?? null,
+          album: currentTrack?.album ?? null,
+          coverUrl: currentTrack?.coverUrl ?? null,
+          isPlaying: telemetry.isPlaying,
+          positionMs: posMs,
+          durationMs: telemetry.durationMs || currentTrack?.durationMs || 0,
+          source: currentTrack?.source ?? "local",
+        })
+        .catch(() => {});
+    },
+    [
+      preferences.discordRpc,
+      preferences.discordAppId,
+      currentTrack?.id,
+      currentTrack?.title,
+      currentTrack?.artist,
+      currentTrack?.album,
+      currentTrack?.coverUrl,
+      currentTrack?.source,
+      currentTrack?.durationMs,
+      telemetry.isPlaying,
+      telemetry.positionMs,
+      telemetry.durationMs,
+    ]
+  );
+
   useEffect(() => {
-    api
-      .updateDiscordPresence({
-        enabled: preferences.discordRpc,
-        appId: preferences.discordAppId,
-        title: currentTrack?.title ?? null,
-        artist: currentTrack?.artist ?? null,
-        album: currentTrack?.album ?? null,
-        coverUrl: currentTrack?.coverUrl ?? null,
-        isPlaying: telemetry.isPlaying,
-        positionMs: telemetry.positionMs,
-        durationMs: telemetry.durationMs || currentTrack?.durationMs || 0,
-        source: currentTrack?.source ?? "local",
-      })
-      .catch(() => {});
+    const trackChanged = lastRpcTrackIdRef.current !== (currentTrack?.id ?? null);
+    lastRpcTrackIdRef.current = currentTrack?.id ?? null;
+    pushDiscordPresence(trackChanged ? 0 : telemetry.positionMs);
   }, [
     preferences.discordRpc,
     preferences.discordAppId,
@@ -314,19 +343,48 @@ export const App: React.FC = () => {
     telemetry.isPlaying,
   ]);
 
+  useEffect(() => {
+    if (!telemetry.isPlaying || !currentTrack) return;
+    const expected =
+      lastRpcPosRef.current.pos + (performance.now() - lastRpcPosRef.current.ts);
+    if (Math.abs(telemetry.positionMs - expected) > 2500) {
+      pushDiscordPresence(telemetry.positionMs);
+    }
+  }, [telemetry.positionMs, telemetry.isPlaying, currentTrack?.id]);
+
   const startTrackPlayback = useCallback(
     async (track: Track) => {
       try {
         setScRetryTrack(null);
         await api.playTrack(track);
+        consecSkipRef.current = 0;
       } catch (err) {
-        notify(`${String(err)}`, "error");
+        const msg = String(err);
+        const isScUnavailable =
+          track.source === "soundcloud" &&
+          (msg.includes("[SC_UNAVAILABLE]") ||
+            msg.includes("DRM") ||
+            msg.includes("No SoundCloud streams"));
+        if (isScUnavailable) {
+          notify(
+            preferences.language === "ru"
+              ? "Трек недоступен (авторские права / регион) — пропускаю"
+              : "Track unavailable (copyright / region) — skipping",
+            "info"
+          );
+          if (consecSkipRef.current < 4) {
+            consecSkipRef.current += 1;
+            window.setTimeout(() => handleNextRef.current(), 320);
+          }
+          return;
+        }
+        notify(msg, "error");
         if (track.source === "soundcloud") {
           setScRetryTrack(track);
         }
       }
     },
-    [notify]
+    [notify, preferences.language]
   );
 
   const handlePlayTrack = useCallback(
@@ -355,15 +413,35 @@ export const App: React.FC = () => {
       return;
     }
     let nextIdx = currentIndex + 1;
-    if (shuffle && queue.length > 1) {
-      nextIdx = Math.floor(Math.random() * queue.length);
-    } else if (nextIdx >= queue.length) {
-      if (repeat === "all") nextIdx = 0;
-      else return;
+    let workingQueue = queue;
+
+    if (shuffle && workingQueue.length > 1) {
+      nextIdx = Math.floor(Math.random() * workingQueue.length);
+    } else if (nextIdx >= workingQueue.length) {
+      if (activeWave) {
+        try {
+          const more = await api.getWaveTracks(activeWave, false);
+          const ids = new Set(workingQueue.map((t) => t.id));
+          const fresh = more.filter((t) => !ids.has(t.id));
+          if (fresh.length > 0) {
+            workingQueue = [...workingQueue, ...fresh];
+            setQueue(workingQueue);
+          } else {
+            return;
+          }
+        } catch {
+          return;
+        }
+      } else if (repeat === "all") {
+        nextIdx = 0;
+      } else {
+        return;
+      }
     }
-    if (queue.length - nextIdx <= 2 && activeWave && !waveLoading) {
+
+    if (workingQueue.length - nextIdx <= 3 && activeWave && !waveLoading) {
       api
-        .getWaveTracks(activeWave)
+        .getWaveTracks(activeWave, false)
         .then((more) => {
           if (more.length > 0) {
             setQueue((prev) => {
@@ -376,18 +454,36 @@ export const App: React.FC = () => {
         .catch(() => {});
     }
     setCurrentIndex(nextIdx);
-    await startTrackPlayback(queue[nextIdx]);
-    if (nextIdx + 1 < queue.length) {
-      api.prefetchTrack(queue[nextIdx + 1]).catch(() => {});
+    await startTrackPlayback(workingQueue[nextIdx]);
+    if (nextIdx + 1 < workingQueue.length) {
+      api.prefetchTrack(workingQueue[nextIdx + 1]).catch(() => {});
     }
   }, [queue, currentIndex, repeat, shuffle, activeWave, waveLoading, startTrackPlayback]);
+
+  useEffect(() => {
+    handleNextRef.current = () => {
+      void handleNext();
+    };
+  }, [handleNext]);
 
   const handleStartWave = useCallback(
     async (source: WaveSource) => {
       setWaveSource(source);
       setWaveLoading(true);
       try {
-        const waveTracks = await api.getWaveTracks(source);
+        let waveTracks = await api.getWaveTracks(source, true);
+        let fresh = waveTracks.filter((t) => !waveSeenIdsRef.current.has(t.id));
+        if (fresh.length === 0 && waveTracks.length > 0) {
+          const secondBatch = await api.getWaveTracks(source, false).catch(() => []);
+          fresh = secondBatch.filter((t) => !waveSeenIdsRef.current.has(t.id));
+          if (fresh.length > 0) waveTracks = fresh;
+        } else if (fresh.length > 0) {
+          waveTracks = fresh;
+        }
+        waveTracks.forEach((t) => waveSeenIdsRef.current.add(t.id));
+        if (waveSeenIdsRef.current.size > 300) {
+          waveSeenIdsRef.current.clear();
+        }
         if (waveTracks.length === 0) {
           notify(
             preferences.language === "ru"
@@ -706,7 +802,10 @@ export const App: React.FC = () => {
               onTogglePlay={handleTogglePlay}
               onPrev={handlePrev}
               onNext={handleNext}
-              onSeek={(ms) => api.seekPlayback(ms).catch(() => {})}
+              onSeek={(ms) => {
+                api.seekPlayback(ms).catch(() => {});
+                pushDiscordPresence(ms);
+              }}
               onVolumeChange={(v) => {
                 setTelemetry((prev) => ({ ...prev, volume: v, muted: false }));
                 api.setVolume(v).catch(() => {});
@@ -1110,13 +1209,44 @@ export const App: React.FC = () => {
 
       {toast && (
         <div
-          className={`fixed bottom-28 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full border backdrop-blur-xl text-xs font-medium shadow-2xl awase-view-enter ${
+          className={`fixed top-16 right-5 z-[60] max-w-[360px] w-auto px-4 py-3 rounded-2xl border backdrop-blur-2xl shadow-[0_20px_50px_rgba(0,0,0,0.72)] flex items-center gap-3 awase-view-enter ${
             toast.tone === "error"
-              ? "bg-rose-950/90 border-rose-500/40 text-rose-200"
-              : "bg-[#101217]/95 border-white/[0.15] text-white"
+              ? "bg-[#1A1015]/95 border-rose-500/30 text-rose-100"
+              : "bg-[#11131A]/95 border-white/[0.12] text-white"
           }`}
         >
-          {toast.text}
+          <div
+            className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border ${
+              toast.tone === "error"
+                ? "bg-rose-500/15 border-rose-500/25 text-rose-400"
+                : "bg-white/[0.07] border-white/[0.1] text-slate-200"
+            }`}
+          >
+            {toast.tone === "error" ? (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+            ) : (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="5 4 15 12 5 20 5 4" />
+                <line x1="19" y1="5" x2="19" y2="19" />
+              </svg>
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[12.5px] font-medium leading-snug text-white/95">
+              {toast.text}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setToast(null)}
+            className="w-6 h-6 rounded-lg flex items-center justify-center text-white/40 hover:text-white hover:bg-white/[0.08] transition-colors text-xs leading-none cursor-pointer shrink-0"
+          >
+            ✕
+          </button>
         </div>
       )}
 

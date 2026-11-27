@@ -653,9 +653,16 @@ pub async fn resolve_and_download(
         }
     }
     if !resp.status().is_success() {
+        let code = resp.status().as_u16();
+        if code == 404 || code == 451 {
+            return Err("[SC_UNAVAILABLE] Трек недоступен из-за авторских прав или ограничений региона".to_string());
+        }
         return Err(format!("SoundCloud track HTTP {}", resp.status()));
     }
     let json: Value = resp.json().await.map_err(|e| e.to_string())?;
+    if json.get("policy").and_then(|v| v.as_str()) == Some("BLOCK") {
+        return Err("[SC_UNAVAILABLE] Трек недоступен из-за авторских прав или ограничений региона".to_string());
+    }
     let track_auth = json
         .get("track_authorization")
         .and_then(|v| v.as_str())
@@ -664,7 +671,7 @@ pub async fn resolve_and_download(
         .get("media")
         .and_then(|m| m.get("transcodings"))
         .and_then(|t| t.as_array())
-        .ok_or_else(|| "No SoundCloud streams available".to_string())?;
+        .ok_or_else(|| "[SC_UNAVAILABLE] Трек недоступен (нет аудиопотоков)".to_string())?;
 
     let progressive = transcodings.iter().find(|t| {
         t.get("format")
@@ -716,7 +723,7 @@ pub async fn resolve_and_download(
         }
     }
     if candidates.is_empty() {
-        return Err("Track is DRM-protected on SoundCloud".to_string());
+        return Err("[SC_UNAVAILABLE] Трек защищён DRM или авторскими правами".to_string());
     }
 
     let mut last_err = String::from("Missing final SoundCloud stream URL");

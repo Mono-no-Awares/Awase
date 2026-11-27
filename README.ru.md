@@ -66,6 +66,12 @@ npm run tauri build
 
 ---
 
+## Благодарности и тестирование
+
+- **[StrongDeep01](https://github.com/StrongDeep01)** — тестирование и поиск багов (SoundCloud, Моя волна Яндекс Музыки, Lyrics, Discord RPC)
+
+---
+
 ## Лицензия
 
 **PolyForm Noncommercial License 1.0.0** © [Mono-no-Awares](https://github.com/Mono-no-Awares) — см. [LICENSE](LICENSE) и [NOTICE](NOTICE).

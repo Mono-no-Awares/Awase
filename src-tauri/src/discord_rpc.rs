@@ -138,7 +138,17 @@ pub fn update_presence(
         ]
     });
 
-    if let Some(url) = cover_url.filter(|u| u.starts_with("https://") && u.len() < 256) {
+    let normalized_cover = cover_url.map(|u| {
+        if let Some(rest) = u.strip_prefix("http://") {
+            format!("https://{}", rest)
+        } else {
+            u.to_string()
+        }
+    });
+    if let Some(url) = normalized_cover
+        .as_deref()
+        .filter(|u| u.starts_with("https://") && u.len() < 512)
+    {
         activity["assets"]["large_image"] = json!(url);
     }
 

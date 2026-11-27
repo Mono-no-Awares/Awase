@@ -193,6 +193,12 @@ pub async fn play_track(state: State<'_, AppState>, track: Track) -> Result<(), 
                 .get_credentials(SourceKind::Yandex)?
                 .and_then(|c| c.0)
                 .ok_or_else(|| "Connect Yandex Music first".to_string())?;
+            let fb_client = state.http.clone();
+            let fb_token = token.clone();
+            let fb_ext = track.external_id.clone();
+            tauri::async_runtime::spawn(async move {
+                yandex::send_wave_feedback(&fb_client, &fb_token, "trackStarted", Some(&fb_ext), None).await;
+            });
             let (stream_url, _, ext) =
                 yandex::resolve_stream_url(&state.http, &token, &track.external_id).await?;
             providers::download_to_cache(
@@ -530,10 +536,22 @@ pub fn get_source_statuses(state: State<'_, AppState>) -> Result<Vec<SourceStatu
         },
         SourceStatus {
             source: SourceKind::SoundCloud,
-            connected: true,
+            connected: sc
+                .as_ref()
+                .map(|c| {
+                    c.0.as_deref().map(|s| !s.trim().is_empty()).unwrap_or(false)
+                        || c.2.as_deref().map(|s| !s.trim().is_empty()).unwrap_or(false)
+                })
+                .unwrap_or(false),
             account_label: sc.as_ref().and_then(|c| c.2.clone()),
             details: "SoundCloud".to_string(),
-            has_credentials: sc.is_some(),
+            has_credentials: sc
+                .as_ref()
+                .map(|c| {
+                    c.0.as_deref().map(|s| !s.trim().is_empty()).unwrap_or(false)
+                        || c.2.as_deref().map(|s| !s.trim().is_empty()).unwrap_or(false)
+                })
+                .unwrap_or(false),
         },
     ])
 }
@@ -1138,6 +1156,7 @@ pub fn import_user_backup(
 pub async fn get_wave_tracks(
     state: State<'_, AppState>,
     source: String,
+    reset: Option<bool>,
 ) -> Result<Vec<Track>, String> {
     let want_ym = source == "yandex" || source == "mix";
     let want_sc = source == "soundcloud" || source == "mix";
@@ -1148,7 +1167,15 @@ pub async fn get_wave_tracks(
     if want_ym {
         let token = state.db.get_credentials(SourceKind::Yandex)?.and_then(|c| c.0);
         if let Some(tok) = token {
-            ym_tracks = yandex::fetch_my_wave(&state.http, &tok)
+            let seeds: Vec<String> = state
+                .db
+                .get_tracks(Some(SourceKind::Yandex), None)
+                .unwrap_or_default()
+                .into_iter()
+                .take(60)
+                .map(|t| t.external_id)
+                .collect();
+            ym_tracks = yandex::fetch_my_wave(&state.http, &tok, reset.unwrap_or(false), &seeds)
                 .await
                 .unwrap_or_default();
         } else if source == "yandex" {

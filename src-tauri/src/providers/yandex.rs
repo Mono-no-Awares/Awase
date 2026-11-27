@@ -1,10 +1,20 @@
+use std::collections::HashSet;
 use std::time::{SystemTime, UNIX_EPOCH};
 use md5::{Digest, Md5};
+use parking_lot::Mutex;
 use reqwest::Client;
-use serde_json::Value;
+use serde_json::{json, Value};
 use crate::models::{Playlist, SourceKind, Track};
 
 const YM_API: &str = "https://api.music.yandex.net";
+
+struct WaveSession {
+    batch_id: Option<String>,
+    last_track_id: Option<String>,
+    seen_ids: HashSet<String>,
+}
+
+static WAVE_SESSION: Mutex<Option<WaveSession>> = Mutex::new(None);
 
 pub async fn fetch_account_status(client: &Client, token: &str) -> Result<(String, String), String> {
     let resp = client
@@ -205,21 +215,74 @@ pub async fn sync_library(
     Ok((tracks, playlists))
 }
 
-pub async fn fetch_my_wave(client: &Client, token: &str) -> Result<Vec<Track>, String> {
-    let resp = client
-        .get(format!("{}/rotor/station/user:onyourwave/tracks", YM_API))
+pub async fn send_wave_feedback(
+    client: &Client,
+    token: &str,
+    feedback_type: &str,
+    track_id: Option<&str>,
+    total_played_seconds: Option<f64>,
+) {
+    let batch_id = {
+        let guard = WAVE_SESSION.lock();
+        guard.as_ref().and_then(|s| s.batch_id.clone())
+    };
+    let Some(bid) = batch_id else {
+        return;
+    };
+    let ts = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs_f64())
+        .unwrap_or(0.0);
+    let mut body = json!({
+        "type": feedback_type,
+        "timestamp": ts,
+    });
+    if feedback_type == "radioStarted" {
+        body["from"] = json!("desktop-home-radio");
+    }
+    if let Some(tid) = track_id {
+        body["trackId"] = json!(tid);
+    }
+    if let Some(sec) = total_played_seconds {
+        body["totalPlayedSeconds"] = json!(sec);
+    }
+    let _ = client
+        .post(format!("{}/rotor/station/user:onyourwave/feedback", YM_API))
         .header("Authorization", format!("OAuth {}", token))
         .header("X-Yandex-Music-Client", "YandexMusicAndroid/24023621")
-        .query(&[("settings2", "true")])
+        .query(&[("batch-id", bid.as_str())])
+        .json(&body)
         .send()
-        .await
-        .map_err(|e| e.to_string())?;
+        .await;
+}
 
+async fn fetch_rotor_station(
+    client: &Client,
+    token: &str,
+    station: &str,
+    queue_id: Option<&str>,
+) -> Result<(Option<String>, Vec<Track>), String> {
+    let mut req = client
+        .get(format!("{}/rotor/station/{}/tracks", YM_API, station))
+        .header("Authorization", format!("OAuth {}", token))
+        .header("X-Yandex-Music-Client", "YandexMusicAndroid/24023621")
+        .query(&[("settings2", "true")]);
+    if let Some(q) = queue_id {
+        req = req.query(&[("queue", q)]);
+    }
+
+    let resp = req.send().await.map_err(|e| e.to_string())?;
     if !resp.status().is_success() {
         return Err(format!("Yandex My Wave HTTP {}", resp.status()));
     }
     let json: Value = resp.json().await.map_err(|e| e.to_string())?;
-    let mut out = Vec::new();
+    let batch_id = json
+        .get("result")
+        .and_then(|r| r.get("batchId"))
+        .and_then(|b| b.as_str())
+        .map(str::to_string);
+
+    let mut parsed = Vec::new();
     if let Some(seq) = json
         .get("result")
         .and_then(|r| r.get("sequence"))
@@ -228,10 +291,97 @@ pub async fn fetch_my_wave(client: &Client, token: &str) -> Result<Vec<Track>, S
         for item in seq {
             let t_val = item.get("track").unwrap_or(item);
             if let Some(t) = parse_track(t_val, false) {
-                out.push(t);
+                parsed.push(t);
             }
         }
     }
+    Ok((batch_id, parsed))
+}
+
+pub async fn fetch_my_wave(
+    client: &Client,
+    token: &str,
+    reset: bool,
+    seed_ids: &[String],
+) -> Result<Vec<Track>, String> {
+    let queue_param = {
+        let mut guard = WAVE_SESSION.lock();
+        let sess = guard.get_or_insert_with(|| WaveSession {
+            batch_id: None,
+            last_track_id: None,
+            seen_ids: HashSet::new(),
+        });
+        sess.last_track_id.clone()
+    };
+
+    if let Some(last_tid) = queue_param.as_deref() {
+        send_wave_feedback(client, token, "trackFinished", Some(last_tid), Some(35.0)).await;
+    }
+
+    let (new_batch_id, mut parsed) =
+        fetch_rotor_station(client, token, "user:onyourwave", queue_param.as_deref()).await?;
+
+    let mut fresh: Vec<Track> = {
+        let guard = WAVE_SESSION.lock();
+        let seen = guard.as_ref().map(|s| &s.seen_ids);
+        parsed
+            .iter()
+            .filter(|t| seen.map(|s| !s.contains(&t.external_id)).unwrap_or(true))
+            .cloned()
+            .collect()
+    };
+
+    if fresh.is_empty() && !seed_ids.is_empty() {
+        if let Some(first) = parsed.first() {
+            send_wave_feedback(client, token, "skip", Some(&first.external_id), Some(1.0)).await;
+        }
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.subsec_nanos() as usize)
+            .unwrap_or(0);
+        let pick_idx = nanos % seed_ids.len();
+        let seed_station = format!("track:{}", seed_ids[pick_idx]);
+        if let Ok((_, alt_parsed)) = fetch_rotor_station(client, token, &seed_station, None).await {
+            if !alt_parsed.is_empty() {
+                parsed = alt_parsed;
+                let guard = WAVE_SESSION.lock();
+                let seen = guard.as_ref().map(|s| &s.seen_ids);
+                fresh = parsed
+                    .iter()
+                    .filter(|t| seen.map(|s| !s.contains(&t.external_id)).unwrap_or(true))
+                    .cloned()
+                    .collect();
+            }
+        }
+    }
+
+    let out = {
+        let mut guard = WAVE_SESSION.lock();
+        let sess = guard.get_or_insert_with(|| WaveSession {
+            batch_id: None,
+            last_track_id: None,
+            seen_ids: HashSet::new(),
+        });
+        if new_batch_id.is_some() {
+            sess.batch_id = new_batch_id;
+        }
+        if sess.seen_ids.len() > 400 {
+            sess.seen_ids.clear();
+        }
+        let chosen = if fresh.is_empty() { parsed } else { fresh };
+        if let Some(last) = chosen.last() {
+            sess.last_track_id = Some(last.external_id.clone());
+        }
+        for t in &chosen {
+            sess.seen_ids.insert(t.external_id.clone());
+        }
+        chosen
+    };
+
+    if reset {
+        send_wave_feedback(client, token, "radioStarted", None, None).await;
+    }
+
     Ok(out)
 }
 

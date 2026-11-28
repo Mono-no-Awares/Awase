@@ -24,7 +24,7 @@ interface TitleBarProps {
   onToggleGamingMode: () => void;
 }
 
-export const TitleBar: React.FC<TitleBarProps> = ({
+export const TitleBar: React.FC<TitleBarProps> = React.memo(({
   language,
   searchQuery,
   onSearchChange,
@@ -205,4 +205,4 @@ export const TitleBar: React.FC<TitleBarProps> = ({
       </div>
     </header>
   );
-};
+});

@@ -1,8 +1,9 @@
-use parking_lot::Mutex;
+use parking_lot::{Condvar, Mutex};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
+use std::sync::OnceLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const DEFAULT_DISCORD_APP_ID: &str = "1575483583013982429";
@@ -61,6 +62,34 @@ struct RpcSession {
 }
 
 static RPC_CONN: Mutex<Option<RpcSession>> = Mutex::new(None);
+static RPC_QUEUE: OnceLock<(Mutex<Option<DiscordPresencePayload>>, Condvar)> = OnceLock::new();
+
+pub fn enqueue_presence(opts: DiscordPresencePayload) {
+    let pair = RPC_QUEUE.get_or_init(|| {
+        std::thread::Builder::new()
+            .name("awase-discord-rpc".to_string())
+            .spawn(|| loop {
+                let Some((lock, cvar)) = RPC_QUEUE.get() else {
+                    break;
+                };
+                let next = {
+                    let mut guard = lock.lock();
+                    while guard.is_none() {
+                        cvar.wait(&mut guard);
+                    }
+                    guard.take()
+                };
+                if let Some(payload) = next {
+                    update_presence(payload);
+                }
+            })
+            .ok();
+        (Mutex::new(None), Condvar::new())
+    });
+    let (lock, cvar) = pair;
+    *lock.lock() = Some(opts);
+    cvar.notify_one();
+}
 
 fn write_frame(pipe: &mut File, opcode: u32, payload: &Value) -> Result<(), String> {
     let body = serde_json::to_vec(payload).map_err(|e| e.to_string())?;

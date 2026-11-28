@@ -102,7 +102,6 @@ pub fn run() {
                 db,
                 engine,
                 http,
-                data_dir,
                 cache_dir,
                 sys: Mutex::new(System::new()),
                 play_seq: AtomicU64::new(0),

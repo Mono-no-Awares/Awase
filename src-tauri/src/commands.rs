@@ -24,7 +24,6 @@ pub struct AppState {
     pub db: Arc<Database>,
     pub engine: Arc<AudioEngine>,
     pub http: reqwest::Client,
-    pub data_dir: PathBuf,
     pub cache_dir: PathBuf,
     pub sys: Mutex<System>,
     pub play_seq: AtomicU64,
@@ -1228,12 +1227,6 @@ pub fn get_process_memory_mb(state: State<'_, AppState>) -> f64 {
         .unwrap_or(0.0)
 }
 
-#[cfg(windows)]
-extern "system" {
-    fn GetCurrentProcess() -> isize;
-    fn SetProcessWorkingSetSize(h_process: isize, min_size: usize, max_size: usize) -> i32;
-}
-
 #[tauri::command]
 pub fn set_gaming_mode(_enabled: bool) {
 }
@@ -1245,9 +1238,7 @@ pub fn open_external_url(url: String) -> Result<(), String> {
 
 #[tauri::command]
 pub fn update_discord_presence(payload: crate::discord_rpc::DiscordPresencePayload) {
-    std::thread::spawn(move || {
-        crate::discord_rpc::update_presence(payload);
-    });
+    crate::discord_rpc::enqueue_presence(payload);
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]

@@ -311,14 +311,22 @@ export const App: React.FC = () => {
       ? telemetry.isPlaying
         ? 500
         : 1000
-      : telemetry.isPlaying || activeView === "resonance"
+      : activeView === "resonance" && telemetry.isPlaying
         ? 33
-        : 220;
+        : telemetry.isPlaying
+          ? 120
+          : 350;
+    let inFlight = false;
     const timer = window.setInterval(() => {
+      if (document.hidden || inFlight) return;
+      inFlight = true;
       api
         .getTelemetry()
         .then(setTelemetry)
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => {
+          inFlight = false;
+        });
     }, intervalMs);
     return () => window.clearInterval(timer);
   }, [telemetry.isPlaying, activeView, preferences.gamingMode]);
@@ -922,6 +930,18 @@ export const App: React.FC = () => {
   }, [tracks, playlistTracks, selectedPlaylistId, sourceFilter]);
 
   const likedCount = useMemo(() => tracks.filter((item) => item.liked).length, [tracks]);
+
+  useEffect(() => {
+    if (
+      activeView === "library" &&
+      !selectedPlaylistId &&
+      sourceFilter === "liked" &&
+      likedCount === 0 &&
+      tracks.length > 0
+    ) {
+      setSourceFilter(tracks[0].source);
+    }
+  }, [activeView, selectedPlaylistId, sourceFilter, likedCount, tracks]);
   const selectedPlaylist = useMemo(
     () => playlists.find((p) => p.id === selectedPlaylistId) ?? null,
     [playlists, selectedPlaylistId]

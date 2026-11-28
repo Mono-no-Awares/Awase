@@ -31,7 +31,7 @@ interface SidebarProps {
   wrappedEnabled?: boolean;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({
+export const Sidebar: React.FC<SidebarProps> = React.memo(({
   language,
   activeView,
   onSelectView,
@@ -322,4 +322,4 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
     </aside>
   );
-};
+});

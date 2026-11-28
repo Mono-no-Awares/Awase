@@ -1,14 +1,18 @@
 import React, { useEffect, useState } from "react";
-import type { AppLanguage, WrappedStatsData } from "../types";
+import type { AppLanguage, Track, WrappedStatsData } from "../types";
 import type { CoverPalette } from "../lib/colorExtract";
 import { api } from "../lib/ipc";
 import { SOURCE_META } from "../lib/sources";
 import { CoverArt } from "./CoverArt";
+import { GalaxyMap } from "./GalaxyMap";
 import { IconResonance, SourceIcon } from "./AwaseIcons";
 
 interface WrappedViewProps {
   language: AppLanguage;
   coverPalette: CoverPalette;
+  tracks: Track[];
+  currentTrack: Track | null;
+  onPlayTrack: (track: Track, list: Track[]) => void;
 }
 
 function formatHoursMinutes(ms: number, lang: AppLanguage): string {
@@ -24,8 +28,12 @@ function formatHoursMinutes(ms: number, lang: AppLanguage): string {
 export const WrappedView: React.FC<WrappedViewProps> = ({
   language,
   coverPalette,
+  tracks,
+  currentTrack,
+  onPlayTrack,
 }) => {
   const [period, setPeriod] = useState<"week" | "all">("week");
+  const [showGalaxy, setShowGalaxy] = useState(false);
   const [stats, setStats] = useState<WrappedStatsData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -68,31 +76,83 @@ export const WrappedView: React.FC<WrappedViewProps> = ({
           </h1>
         </div>
 
-        <div className="inline-flex items-center p-1 rounded-full bg-white/[0.06] border border-white/[0.1] gap-1">
+        <div className="flex flex-wrap items-center gap-2.5">
           <button
             type="button"
-            onClick={() => setPeriod("week")}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 cursor-pointer ${
-              period === "week"
-                ? "bg-white text-[#07080C] shadow"
-                : "text-slate-300 hover:text-white"
+            onClick={() => setShowGalaxy((g) => !g)}
+            style={
+              showGalaxy
+                ? {
+                    backgroundColor: `${coverPalette.primary}22`,
+                    borderColor: `${coverPalette.primary}66`,
+                    boxShadow: `0 0 18px -4px ${coverPalette.glow}`,
+                  }
+                : undefined
+            }
+            className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-full border text-xs font-medium transition-all duration-200 active:scale-95 cursor-pointer ${
+              showGalaxy
+                ? "text-white"
+                : "bg-white/[0.06] hover:bg-white/[0.1] border-white/[0.1] text-slate-200 hover:text-white"
             }`}
           >
-            {isRu ? "За неделю" : "This Week"}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="2" />
+              <circle cx="5" cy="7" r="1.5" />
+              <circle cx="19" cy="8" r="1.5" />
+              <circle cx="7" cy="18" r="1.5" />
+              <circle cx="18" cy="17" r="1.5" />
+              <path d="M6.3 8.1 10.4 10.9M17.7 8.9 13.6 11M8.2 16.8l2.7-3.4M16.7 16l-3.3-2.9" />
+            </svg>
+            <span>
+              {showGalaxy
+                ? isRu
+                  ? "Назад к Wrapped"
+                  : "Back to Wrapped"
+                : isRu
+                  ? "Созвездие библиотеки"
+                  : "Galaxy Map"}
+            </span>
           </button>
-          <button
-            type="button"
-            onClick={() => setPeriod("all")}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 cursor-pointer ${
-              period === "all"
-                ? "bg-white text-[#07080C] shadow"
-                : "text-slate-300 hover:text-white"
-            }`}
-          >
-            {isRu ? "За всё время" : "All Time"}
-          </button>
+
+          {!showGalaxy && (
+            <div className="inline-flex items-center p-1 rounded-full bg-white/[0.06] border border-white/[0.1] gap-1">
+              <button
+                type="button"
+                onClick={() => setPeriod("week")}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 cursor-pointer ${
+                  period === "week"
+                    ? "bg-white text-[#07080C] shadow"
+                    : "text-slate-300 hover:text-white"
+                }`}
+              >
+                {isRu ? "За неделю" : "This Week"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setPeriod("all")}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 cursor-pointer ${
+                  period === "all"
+                    ? "bg-white text-[#07080C] shadow"
+                    : "text-slate-300 hover:text-white"
+                }`}
+              >
+                {isRu ? "За всё время" : "All Time"}
+              </button>
+            </div>
+          )}
         </div>
       </div>
+
+      {showGalaxy ? (
+        <GalaxyMap
+          language={language}
+          tracks={tracks}
+          currentTrack={currentTrack}
+          coverPalette={coverPalette}
+          onPlayTrack={onPlayTrack}
+        />
+      ) : (
+      <>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="awase-card rounded-2xl p-5 space-y-1">
@@ -224,6 +284,8 @@ export const WrappedView: React.FC<WrappedViewProps> = ({
             </div>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );

@@ -269,6 +269,7 @@ pub fn run() {
             commands::check_for_updates,
             commands::record_listen_event,
             commands::get_wrapped_stats,
+            commands::export_track_audio,
         ])
         .run(tauri::generate_context!())
         .expect("error while running awase");

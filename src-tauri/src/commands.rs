@@ -471,7 +471,7 @@ pub fn get_dsp_effect(state: State<'_, AppState>) -> u8 {
 
 #[tauri::command]
 pub fn set_dsp_effect(state: State<'_, AppState>, effect: u8) -> u8 {
-    let clamped = effect.min(2);
+    let clamped = effect.min(3);
     state.engine.set_dsp_effect(clamped);
     let _ = state.db.save_setting("dsp_effect", &clamped.to_string());
     clamped
@@ -507,8 +507,17 @@ pub fn set_mini_player_mode(
         if is_max {
             let _ = win.unmaximize();
         }
-        let _ = win.set_min_size(Some(tauri::LogicalSize::new(320.0, 86.0)));
-        let _ = win.set_size(tauri::LogicalSize::new(372.0, 96.0));
+        let _ = win.set_min_size(Some(tauri::LogicalSize::new(320.0, 68.0)));
+        let _ = win.set_size(tauri::LogicalSize::new(404.0, 78.0));
+        if let Ok(Some(mon)) = win.current_monitor() {
+            let scale = mon.scale_factor();
+            let mon_pos = mon.position();
+            let mon_size = mon.size();
+            let island_w = (404.0 * scale) as i32;
+            let x = mon_pos.x + ((mon_size.width as i32 - island_w) / 2).max(0);
+            let y = mon_pos.y + (14.0 * scale) as i32;
+            let _ = win.set_position(tauri::PhysicalPosition::new(x, y));
+        }
         let _ = win.set_always_on_top(true);
     } else {
         let _ = win.set_always_on_top(false);
@@ -1856,4 +1865,169 @@ pub async fn check_for_updates(state: State<'_, AppState>) -> Result<UpdateCheck
         release_url,
         release_name,
     })
+}
+
+fn write_wav_from_audio(src_path: &std::path::Path, dest_path: &std::path::Path) -> Result<(), String> {
+    use rodio::Source;
+    use std::io::{BufReader, BufWriter, Seek, SeekFrom, Write};
+
+    let file = std::fs::File::open(src_path).map_err(|e| e.to_string())?;
+    let decoder = rodio::Decoder::new(BufReader::new(file)).map_err(|e| e.to_string())?;
+    let channels = decoder.channels().max(1);
+    let sample_rate = decoder.sample_rate().max(8000);
+    let bits_per_sample: u16 = 16;
+    let byte_rate = sample_rate * channels as u32 * (bits_per_sample as u32 / 8);
+    let block_align = channels * (bits_per_sample / 8);
+
+    let out_file = std::fs::File::create(dest_path).map_err(|e| e.to_string())?;
+    let mut w = BufWriter::new(out_file);
+
+    w.write_all(b"RIFF").map_err(|e| e.to_string())?;
+    w.write_all(&0u32.to_le_bytes()).map_err(|e| e.to_string())?;
+    w.write_all(b"WAVE").map_err(|e| e.to_string())?;
+    w.write_all(b"fmt ").map_err(|e| e.to_string())?;
+    w.write_all(&16u32.to_le_bytes()).map_err(|e| e.to_string())?;
+    w.write_all(&1u16.to_le_bytes()).map_err(|e| e.to_string())?;
+    w.write_all(&channels.to_le_bytes()).map_err(|e| e.to_string())?;
+    w.write_all(&sample_rate.to_le_bytes()).map_err(|e| e.to_string())?;
+    w.write_all(&byte_rate.to_le_bytes()).map_err(|e| e.to_string())?;
+    w.write_all(&block_align.to_le_bytes()).map_err(|e| e.to_string())?;
+    w.write_all(&bits_per_sample.to_le_bytes()).map_err(|e| e.to_string())?;
+    w.write_all(b"data").map_err(|e| e.to_string())?;
+    w.write_all(&0u32.to_le_bytes()).map_err(|e| e.to_string())?;
+
+    let mut data_bytes: u32 = 0;
+    for sample in decoder.convert_samples::<i16>() {
+        w.write_all(&sample.to_le_bytes()).map_err(|e| e.to_string())?;
+        data_bytes = data_bytes.saturating_add(2);
+    }
+    w.flush().map_err(|e| e.to_string())?;
+
+    let mut f = w.into_inner().map_err(|e| e.to_string())?;
+    let riff_size = data_bytes.saturating_add(36);
+    f.seek(SeekFrom::Start(4)).map_err(|e| e.to_string())?;
+    f.write_all(&riff_size.to_le_bytes()).map_err(|e| e.to_string())?;
+    f.seek(SeekFrom::Start(40)).map_err(|e| e.to_string())?;
+    f.write_all(&data_bytes.to_le_bytes()).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn export_track_audio(
+    state: State<'_, AppState>,
+    track: Track,
+    format: String,
+    dest_path: String,
+) -> Result<String, String> {
+    if matches!(track.source, SourceKind::Spotify) {
+        return Err("Spotify tracks cannot be exported".to_string());
+    }
+
+    let fmt = format.trim().to_lowercase();
+    let src_path = match track.source {
+        SourceKind::Local => {
+            let p = track
+                .stream_url
+                .clone()
+                .filter(|s| !s.is_empty())
+                .unwrap_or_else(|| track.external_id.clone());
+            PathBuf::from(p)
+        }
+        SourceKind::Yandex => {
+            if let Some(cached) = providers::find_cached_track(&state.cache_dir, &track.id) {
+                cached
+            } else {
+                let token = state
+                    .db
+                    .get_credentials(SourceKind::Yandex)?
+                    .and_then(|c| c.0)
+                    .ok_or_else(|| "Connect Yandex Music first".to_string())?;
+                let http = state.http.clone();
+                let cache_dir = state.cache_dir.clone();
+                let tid = track.id.clone();
+                let ext_id = track.external_id.clone();
+                providers::run_dedup_download(&track.id, async move {
+                    let (stream_url, _, ext) =
+                        yandex::resolve_stream_url(&http, &token, &ext_id).await?;
+                    providers::download_to_cache(&http, &cache_dir, &tid, &ext, &stream_url, None)
+                        .await
+                })
+                .await?
+            }
+        }
+        SourceKind::SoundCloud => {
+            if let Some(cached) = providers::find_cached_track(&state.cache_dir, &track.id) {
+                cached
+            } else {
+                let creds = state.db.get_credentials(SourceKind::SoundCloud)?;
+                let cached_cid = creds.as_ref().and_then(|c| c.1.clone());
+                let http = state.http.clone();
+                let cache_dir = state.cache_dir.clone();
+                let db = Arc::clone(&state.db);
+                let tid = track.id.clone();
+                let ext_id = track.external_id.clone();
+                providers::run_dedup_download(&track.id, async move {
+                    let cid = soundcloud::resolve_client_id(&http, cached_cid.as_deref()).await?;
+                    let _ = db.save_credentials(SourceKind::SoundCloud, None, Some(&cid), None, None);
+                    soundcloud::resolve_and_download(&http, &cache_dir, &cid, &ext_id, &tid).await
+                })
+                .await?
+            }
+        }
+        SourceKind::Spotify => unreachable!(),
+    };
+
+    let src_ext = src_path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("mp3")
+        .to_lowercase();
+
+    let target_ext = match fmt.as_str() {
+        "wav" => "wav".to_string(),
+        "mp3" => "mp3".to_string(),
+        "flac" => "flac".to_string(),
+        "ogg" => "ogg".to_string(),
+        _ => src_ext.clone(),
+    };
+
+    let mut dest_buf = PathBuf::from(&dest_path);
+    if fmt == "original" {
+        dest_buf.set_extension(&src_ext);
+    }
+    let dest_str = dest_buf.to_string_lossy().to_string();
+
+    tokio::task::spawn_blocking(move || -> Result<(), String> {
+        if fmt == "original" || src_ext == target_ext {
+            std::fs::copy(&src_path, &dest_buf).map_err(|e| e.to_string())?;
+            return Ok(());
+        }
+        if target_ext == "wav" {
+            return write_wav_from_audio(&src_path, &dest_buf);
+        }
+        let mut cmd = std::process::Command::new("ffmpeg");
+        cmd.arg("-y").arg("-i").arg(&src_path).arg(&dest_buf);
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            cmd.creation_flags(0x08000000);
+        }
+        let status = cmd.status().map_err(|e| {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                format!(
+                    "Converting .{src_ext} to .{target_ext} requires ffmpeg in PATH (use WAV or Original instead)"
+                )
+            } else {
+                e.to_string()
+            }
+        })?;
+        if !status.success() {
+            return Err(format!("ffmpeg exited with status {}", status));
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+
+    Ok(dest_str)
 }

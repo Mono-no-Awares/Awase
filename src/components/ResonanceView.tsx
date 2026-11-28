@@ -11,6 +11,7 @@ import type {
 import type { CoverPalette } from "../lib/colorExtract";
 import { TRANSLATIONS } from "../lib/i18n";
 import { api } from "../lib/ipc";
+import { exportTrackWithDialog } from "../lib/exportTrack";
 import { formatDuration, SOURCE_META } from "../lib/sources";
 import {
   IconCheck,
@@ -31,6 +32,7 @@ import {
   SourceIcon,
 } from "./AwaseIcons";
 import { VisualizerCanvas } from "./VisualizerCanvas";
+import { LiquidAuroraCanvas } from "./LiquidAuroraCanvas";
 
 interface ResonanceViewProps {
   language: AppLanguage;
@@ -66,6 +68,7 @@ interface ResonanceViewProps {
   onShareCard?: () => void;
   playlists?: Playlist[];
   onAddToPlaylist?: (playlistId: string, track: Track) => void;
+  onNotify?: (msg: string) => void;
 }
 
 export const ResonanceView: React.FC<ResonanceViewProps> = ({
@@ -102,6 +105,7 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
   onShareCard,
   playlists = [],
   onAddToPlaylist,
+  onNotify,
 }) => {
   const t = TRANSLATIONS[language];
   const meta = currentTrack ? SOURCE_META[currentTrack.source] : SOURCE_META.local;
@@ -109,8 +113,9 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
   const [scrubMs, setScrubMs] = useState<number | null>(null);
   const [isScrubbing, setIsScrubbing] = useState(false);
   const seekHoldRef = useRef<{ target: number; until: number } | null>(null);
-  const [openMenu, setOpenMenu] = useState<"wave" | "style" | "playlist" | null>(null);
+  const [openMenu, setOpenMenu] = useState<"wave" | "style" | "playlist" | "export" | null>(null);
   const [coverSrc, setCoverSrc] = useState<string | null>(currentTrack?.coverUrl ?? null);
+  const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
   const menusRef = useRef<HTMLDivElement | null>(null);
   const playlistMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -183,6 +188,11 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
       label: t.vizOrbital,
       desc: language === "ru" ? "Орбитальные частицы" : "Orbital particle field",
     },
+    {
+      id: "liquid",
+      label: t.vizLiquid,
+      desc: language === "ru" ? "Шейдерный фон с реакцией на бас" : "WebGL bass-reactive shader",
+    },
   ];
 
   const waveSources: Array<{ id: WaveSource; label: string }> = [
@@ -201,25 +211,49 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
   };
 
   return (
-    <div className="relative isolate h-full min-h-[500px] rounded-3xl overflow-hidden border border-white/[0.08] bg-[#050507] flex flex-col justify-between p-6 awase-view-enter">
+    <div
+      onMouseMove={(e) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          setMousePos({
+            x: (e.clientX - rect.left) / rect.width,
+            y: (e.clientY - rect.top) / rect.height,
+          });
+        }
+      }}
+      onMouseLeave={() => setMousePos(null)}
+      className="relative isolate h-full min-h-[500px] rounded-3xl overflow-hidden border border-white/[0.08] bg-[#050507] flex flex-col justify-between p-6 awase-view-enter"
+    >
       <div
         className="absolute inset-0 pointer-events-none transition-all duration-1000"
         style={{
           background: `radial-gradient(circle at 50% 42%, ${coverPalette.glow}, transparent 64%)`,
-          opacity: telemetry.isPlaying ? 0.78 : 0.28,
+          opacity: visualizerStyle === "liquid" ? 0.25 : telemetry.isPlaying ? 0.78 : 0.28,
         }}
       />
 
       <div className="absolute inset-0 pointer-events-none">
-        <VisualizerCanvas
-          styleMode={visualizerStyle}
-          spectrum={telemetry.spectrum}
-          peak={telemetry.peak}
-          isPlaying={telemetry.isPlaying}
-          accentColor={coverPalette.primary}
-          secondaryColor={coverPalette.secondary}
-          gamingMode={gamingMode}
-        />
+        {visualizerStyle === "liquid" ? (
+          <LiquidAuroraCanvas
+            spectrum={telemetry.spectrum}
+            peak={telemetry.peak}
+            isPlaying={telemetry.isPlaying}
+            accentColor={coverPalette.primary}
+            secondaryColor={coverPalette.secondary}
+            gamingMode={gamingMode}
+            mousePos={mousePos}
+          />
+        ) : (
+          <VisualizerCanvas
+            styleMode={visualizerStyle}
+            spectrum={telemetry.spectrum}
+            peak={telemetry.peak}
+            isPlaying={telemetry.isPlaying}
+            accentColor={coverPalette.primary}
+            secondaryColor={coverPalette.secondary}
+            gamingMode={gamingMode}
+          />
+        )}
       </div>
 
       <div className="relative z-30 flex flex-wrap items-center justify-between gap-3">
@@ -240,6 +274,52 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
           ref={menusRef}
           className="relative flex items-center gap-1 p-1 rounded-full bg-black/45 border border-white/[0.08] backdrop-blur-xl shadow-[0_10px_32px_rgba(0,0,0,0.45)]"
         >
+          {currentTrack && currentTrack.source !== "spotify" && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setOpenMenu((m) => (m === "export" ? null : "export"))}
+                aria-label={language === "ru" ? "Экспорт трека" : "Export Audio"}
+                className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 cursor-pointer ${
+                  openMenu === "export"
+                    ? "bg-white/[0.12] text-white"
+                    : "text-slate-300 hover:text-white hover:bg-white/[0.08]"
+                }`}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+              </button>
+              {openMenu === "export" && (
+                <div className="awase-menu-pop absolute right-0 mt-2.5 w-48 rounded-2xl awase-glass border border-white/[0.1] ring-1 ring-white/[0.04] shadow-[0_22px_56px_rgba(0,0,0,0.88)] p-2 z-50 space-y-1">
+                  <div className="px-2.5 pt-1 pb-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                    {language === "ru" ? "Экспорт трека" : "Export Audio"}
+                  </div>
+                  {(
+                    [
+                      { id: "wav", label: "WAV (Lossless)" },
+                      { id: "mp3", label: "MP3" },
+                      { id: "original", label: language === "ru" ? "Оригинал" : "Original" },
+                    ] as const
+                  ).map((fmt) => (
+                    <button
+                      key={fmt.id}
+                      type="button"
+                      onClick={() => {
+                        setOpenMenu(null);
+                        void exportTrackWithDialog(currentTrack, fmt.id, language, onNotify);
+                      }}
+                      className="w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-xs text-slate-200 hover:bg-white/[0.08] hover:text-white transition-colors text-left cursor-pointer"
+                    >
+                      <span>{fmt.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           {currentTrack && onShareCard && (
             <button
               type="button"

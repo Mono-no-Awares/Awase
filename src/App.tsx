@@ -226,6 +226,17 @@ export const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    const onCustomNotify = (e: Event) => {
+      const msg = (e as CustomEvent<string>).detail;
+      if (typeof msg === "string" && msg) {
+        notify(msg);
+      }
+    };
+    window.addEventListener("awase:notify", onCustomNotify);
+    return () => window.removeEventListener("awase:notify", onCustomNotify);
+  }, [notify]);
+
+  useEffect(() => {
     if (!toast) return;
     const id = window.setTimeout(() => setToast(null), 4200);
     return () => window.clearTimeout(id);
@@ -287,7 +298,7 @@ export const App: React.FC = () => {
         if (autoCleanDays >= 0) {
           api.cleanupNonFavoriteCache(autoCleanDays).catch(() => {});
         }
-        if (seenVer !== "0.2.5") {
+        if (seenVer !== "0.2.6") {
           window.setTimeout(() => setChangelogOpen(true), 1050);
         }
       });
@@ -1170,6 +1181,7 @@ export const App: React.FC = () => {
               onDislikeWave={handleDislikeWave}
               onOpenLyrics={() => setLyricsOpen(true)}
               onShareCard={preferences.shareCardEnabled !== false ? handleShareCard : undefined}
+              onNotify={notify}
               playlists={playlists}
               onAddToPlaylist={async (playlistId, track) => {
                 try {
@@ -1216,6 +1228,9 @@ export const App: React.FC = () => {
             <WrappedView
               language={preferences.language}
               coverPalette={coverPalette}
+              tracks={tracks}
+              currentTrack={currentTrack}
+              onPlayTrack={handlePlayTrack}
             />
           )}
 
@@ -1715,11 +1730,11 @@ export const App: React.FC = () => {
       />
       <ChangelogModal
         open={changelogOpen}
-        version="0.2.5"
+        version="0.2.6"
         language={preferences.language}
         onClose={() => {
           setChangelogOpen(false);
-          setPreferences((prev) => ({ ...prev, lastSeenVersion: "0.2.5" }));
+          setPreferences((prev) => ({ ...prev, lastSeenVersion: "0.2.6" }));
         }}
       />
     </div>

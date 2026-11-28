@@ -50,7 +50,7 @@ export interface LyricsPayload {
   lines: LyricLine[];
 }
 
-export type VisualizerStyle = "aura" | "silk" | "orbital";
+export type VisualizerStyle = "aura" | "silk" | "orbital" | "liquid";
 
 export type MiniVisualizerMode = "bars" | "wave" | "off";
 

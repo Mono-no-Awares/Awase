@@ -135,4 +135,9 @@ export const api = {
   recordListenEvent: (track: Track, listenedMs: number) =>
     invoke<void>("record_listen_event", { track, listenedMs }),
   getWrappedStats: () => invoke<import("../types").WrappedStatsData>("get_wrapped_stats"),
+  exportTrackAudio: (
+    track: Track,
+    format: "mp3" | "wav" | "flac" | "ogg" | "original",
+    destPath: string
+  ) => invoke<string>("export_track_audio", { track, format, destPath }),
 };

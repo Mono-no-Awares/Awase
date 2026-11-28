@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import type { AppLanguage, Playlist, Track } from "../types";
 import type { CoverPalette } from "../lib/colorExtract";
 import { TRANSLATIONS } from "../lib/i18n";
+import { exportTrackWithDialog } from "../lib/exportTrack";
 import { formatDuration } from "../lib/sources";
 import {
   IconCheck,
@@ -65,6 +66,7 @@ export const TrackList: React.FC<TrackListProps> = ({
   const t = TRANSLATIONS[language];
   const [menuState, setMenuState] = useState<{
     track: Track;
+    mode: "playlist" | "export";
     top: number;
     left: number;
     openUp: boolean;
@@ -294,7 +296,7 @@ export const TrackList: React.FC<TrackListProps> = ({
                 {track.album || "—"}
               </div>
 
-              <div className="flex items-center justify-end gap-1 w-[140px] pr-2">
+              <div className="flex items-center justify-end gap-1 w-[172px] pr-2">
                 <button
                   type="button"
                   onClick={(e) => {
@@ -323,12 +325,46 @@ export const TrackList: React.FC<TrackListProps> = ({
                   <IconPlus size={16} />
                 </button>
 
+                {track.source !== "spotify" && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (menuState?.track.id === track.id && menuState.mode === "export") {
+                        setMenuState(null);
+                        return;
+                      }
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const openUp = window.innerHeight - rect.bottom < 190;
+                      setMenuState({
+                        track,
+                        mode: "export",
+                        top: openUp ? rect.top - 8 : rect.bottom + 8,
+                        left: Math.max(12, rect.right - 188),
+                        openUp,
+                      });
+                    }}
+                    aria-label={language === "ru" ? "Скачать трек" : "Export Audio"}
+                    className={`w-8 h-8 flex items-center justify-center rounded-full transition-all active:scale-90 cursor-pointer ${
+                      menuState?.track.id === track.id && menuState.mode === "export"
+                        ? "opacity-100 bg-white/[0.14] text-white border border-white/[0.15]"
+                        : "text-slate-300 opacity-0 group-hover:opacity-100 hover:text-white hover:bg-white/[0.09]"
+                    }`}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                  </button>
+                )}
+
                 {onAddToPlaylist && (
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (menuState?.track.id === track.id) {
+                      if (menuState?.track.id === track.id && menuState.mode === "playlist") {
                         setMenuState(null);
                         return;
                       }
@@ -336,6 +372,7 @@ export const TrackList: React.FC<TrackListProps> = ({
                       const openUp = window.innerHeight - rect.bottom < 250;
                       setMenuState({
                         track,
+                        mode: "playlist",
                         top: openUp ? rect.top - 8 : rect.bottom + 8,
                         left: Math.max(12, rect.right - 224),
                         openUp,
@@ -343,7 +380,7 @@ export const TrackList: React.FC<TrackListProps> = ({
                     }}
                     aria-label={t.addToPlaylist}
                     className={`w-8 h-8 flex items-center justify-center rounded-full transition-all active:scale-90 cursor-pointer ${
-                      menuState?.track.id === track.id
+                      menuState?.track.id === track.id && menuState.mode === "playlist"
                         ? "opacity-100 bg-white/[0.14] text-white border border-white/[0.15]"
                         : "text-slate-300 opacity-0 group-hover:opacity-100 hover:text-white hover:bg-white/[0.09]"
                     }`}
@@ -377,7 +414,6 @@ export const TrackList: React.FC<TrackListProps> = ({
       </div>
 
       {menuState &&
-        onAddToPlaylist &&
         createPortal(
           <div
             ref={menuRef}
@@ -388,8 +424,38 @@ export const TrackList: React.FC<TrackListProps> = ({
               left: menuState.left,
               transform: menuState.openUp ? "translateY(-100%)" : "none",
             }}
-            className="awase-menu-pop z-[999] w-56 rounded-2xl bg-[#101217]/95 backdrop-blur-2xl border border-white/[0.16] shadow-[0_24px_48px_rgba(0,0,0,0.85)] overflow-hidden"
+            className={`awase-menu-pop z-[999] rounded-2xl bg-[#101217]/95 backdrop-blur-2xl border border-white/[0.16] shadow-[0_24px_48px_rgba(0,0,0,0.85)] overflow-hidden ${
+              menuState.mode === "export" ? "w-48" : "w-56"
+            }`}
           >
+            {menuState.mode === "export" ? (
+              <div className="p-2 space-y-1">
+                <div className="px-2 pt-1 pb-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                  {language === "ru" ? "Скачать трек" : "Export Audio"}
+                </div>
+                {(
+                  [
+                    { id: "wav", label: "WAV (Lossless)" },
+                    { id: "mp3", label: "MP3" },
+                    { id: "original", label: language === "ru" ? "Оригинал" : "Original" },
+                  ] as const
+                ).map((fmt) => (
+                  <button
+                    key={fmt.id}
+                    type="button"
+                    onClick={() => {
+                      const target = menuState.track;
+                      setMenuState(null);
+                      void exportTrackWithDialog(target, fmt.id, language);
+                    }}
+                    className="w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-xs text-slate-200 hover:bg-white/[0.1] hover:text-white transition-colors text-left cursor-pointer"
+                  >
+                    <span>{fmt.label}</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <>
             <div className="px-3.5 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-300 border-b border-white/[0.08]">
               {t.addToPlaylist}
             </div>
@@ -406,7 +472,7 @@ export const TrackList: React.FC<TrackListProps> = ({
                     key={pl.id}
                     type="button"
                     onClick={() => {
-                      onAddToPlaylist(pl.id, menuState.track);
+                      onAddToPlaylist?.(pl.id, menuState.track);
                       setAddedKey(`${menuState.track.id}:${pl.id}`);
                       window.setTimeout(() => {
                         setAddedKey(null);
@@ -433,6 +499,8 @@ export const TrackList: React.FC<TrackListProps> = ({
               })
               )}
             </div>
+              </>
+            )}
           </div>,
           document.body
         )}

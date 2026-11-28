@@ -11,55 +11,47 @@ interface ChangelogModalProps {
 
 const ITEMS_RU = [
   {
-    title: "Slowed + Reverb, Nightcore, Crossfade и Мини-плеер",
-    desc: "DSP-эффекты в реальном времени прямо в эквалайзере, плавный Crossfade (0–8 сек) между треками и компактный плавающий мини-плеер поверх всех окон.",
+    title: "8D Audio в реальном времени",
+    desc: "Новый пространственный DSP-эффект в эквалайзере: плавное вращение звука на 360° вокруг головы с лёгкой реверберацией.",
   },
   {
-    title: "Умная библиотека без лишних вкладок",
-    desc: "Убрана вкладка All — в библиотеке отображаются только подключённые сервисы, а если ничего не добавлено, появляется быстрая карточка для подключения.",
+    title: "Liquid Aurora («Жидкий шёлк»)",
+    desc: "Новый WebGL-шейдер в Резонансе, переливающийся в цветах обложки с реакцией на бас и движение курсора.",
   },
   {
-    title: "Идеальная центровка и управление в Резонансе",
-    desc: "Кнопка Play теперь всегда строго по центру, а кнопка добавления в плейлист аккуратно расположена справа от эквалайзера.",
+    title: "Кинетические тексты (Kinetic Lyrics Stage)",
+    desc: "Режим музыкального клипа в окне текста: крупная типографика, пословная анимация и пульсация в такт биту (плюс убран лишний бейдж LRCLIB).",
   },
   {
-    title: "Эквалайзер под цвет обложки",
-    desc: "Кривая АЧХ и индикаторы эквалайзера теперь динамически меняют цвет под обложку текущего трека.",
+    title: "Dynamic Island + Edge Glow",
+    desc: "Мини-плеер переосмыслен в парящий островок у верхнего края экрана с живым спектром, раскрытием при наведении и неоновым свечением по контуру.",
   },
   {
-    title: "Чистый нативный интерфейс",
-    desc: "Отключены всплывающие браузерные подсказки при наведении на кнопки, убран Zapret (WinDivert), а Share Card и Awase Wrapped перенесены во Внешний вид.",
-  },
-  {
-    title: "Авто-очистка кэша при старте",
-    desc: "Треки не из избранного автоматически очищаются при каждом запуске (настраивается в Настройках).",
+    title: "Созвездие библиотеки (Galaxy Map)",
+    desc: "Интерактивная карта треков в Awase Wrapped: звёздное скопление вашей музыки с туманностями, нитями созвездий, зумом и запуском по клику.",
   },
 ];
 
 const ITEMS_EN = [
   {
-    title: "Slowed + Reverb, Nightcore, Crossfade & Mini-Player",
-    desc: "Real-time DSP effects right inside the equalizer, smooth 0–8s track Crossfade, and a floating Always-on-Top Mini-Player.",
+    title: "Real-Time 8D Audio",
+    desc: "New spatial DSP mode in the equalizer with smooth 360° orbit panning, subtle rear attenuation, and room reverb.",
   },
   {
-    title: "Smart, Clutter-Free Library",
-    desc: "Removed the All tab — only connected sources are shown in the library, with a one-click prompt to connect services when empty.",
+    title: "Liquid Aurora WebGL Shader",
+    desc: "New visualizer style in Resonance rendering GPU-accelerated liquid silk gradients that react to bass and cursor movement.",
   },
   {
-    title: "Centered Resonance Controls & Playlist Picker",
-    desc: "The Play button is now strictly centered, and the Add to Playlist button sits cleanly to the right of the Equalizer.",
+    title: "Kinetic Lyrics Stage",
+    desc: "Music-video typography mode in Lyrics with per-word kinetic emphasis and beat pulse (plus removed the LRCLIB source badge).",
   },
   {
-    title: "Cover-Adaptive Equalizer Curve",
-    desc: "The equalizer's frequency response curve and accents now adapt dynamically to the current track's album art.",
+    title: "Dynamic Island + Edge Glow",
+    desc: "Redesigned Mini-Player as a top-centered floating island with live spectrum bars, hover-reveal controls, and bass-reactive Edge Glow.",
   },
   {
-    title: "Pure Native Desktop Feel",
-    desc: "Removed native browser hover tooltips across all buttons, removed Zapret (WinDivert), and moved Share Card & Awase Wrapped into Appearance.",
-  },
-  {
-    title: "Startup Cache Cleanup",
-    desc: "Non-favorite cached audio tracks are automatically cleaned up on every startup (configurable in Settings).",
+    title: "Interactive Galaxy Map",
+    desc: "Explore your library as an interactive constellation inside Awase Wrapped — nebulae, glowing filaments, pan/zoom, and click any star to play.",
   },
 ];
 

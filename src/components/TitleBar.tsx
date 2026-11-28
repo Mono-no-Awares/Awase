@@ -22,6 +22,7 @@ interface TitleBarProps {
   onToggleFullscreen: () => void;
   gamingMode: boolean;
   onToggleGamingMode: () => void;
+  onOpenMiniPlayer?: () => void;
 }
 
 export const TitleBar: React.FC<TitleBarProps> = React.memo(({
@@ -34,6 +35,7 @@ export const TitleBar: React.FC<TitleBarProps> = React.memo(({
   onToggleFullscreen,
   gamingMode,
   onToggleGamingMode,
+  onOpenMiniPlayer,
 }) => {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -166,6 +168,28 @@ export const TitleBar: React.FC<TitleBarProps> = React.memo(({
           <IconBolt size={13} />
           <span className="hidden md:inline">{t.gamingModeLabel}</span>
         </button>
+        {onOpenMiniPlayer && (
+          <button
+            type="button"
+            onClick={onOpenMiniPlayer}
+            aria-label="Mini Player"
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-300 hover:text-white hover:bg-white/[0.09] transition-colors cursor-pointer"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="2" y="4" width="20" height="16" rx="3" />
+              <rect x="11" y="11" width="8" height="6" rx="1.5" fill="currentColor" />
+            </svg>
+          </button>
+        )}
         <button
           type="button"
           onClick={onToggleFullscreen}

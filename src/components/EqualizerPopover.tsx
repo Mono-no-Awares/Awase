@@ -8,7 +8,9 @@ interface EqualizerPopoverProps {
   open: boolean;
   language: AppLanguage;
   eqState: EqualizerState;
+  dspEffect: number;
   onUpdate: (state: EqualizerState) => void;
+  onUpdateDspEffect: (effect: number) => void;
   onClose: () => void;
 }
 
@@ -53,7 +55,9 @@ export const EqualizerPopover: React.FC<EqualizerPopoverProps> = ({
   open,
   language,
   eqState,
+  dspEffect,
   onUpdate,
+  onUpdateDspEffect,
   onClose,
 }) => {
   const t = TRANSLATIONS[language];
@@ -166,6 +170,32 @@ export const EqualizerPopover: React.FC<EqualizerPopoverProps> = ({
             }}
           />
         ))}
+      </div>
+
+      <div className="pt-2 border-t border-white/[0.08] space-y-1.5">
+        <div className="text-[11px] font-medium text-slate-300">
+          {language === "ru" ? "DSP-эффекты на лету" : "Real-time DSP Effects"}
+        </div>
+        <div className="grid grid-cols-3 gap-1.5">
+          {[
+            { id: 0, label: language === "ru" ? "Обычный" : "Normal" },
+            { id: 1, label: "Slowed + Reverb" },
+            { id: 2, label: "Nightcore" },
+          ].map((fx) => (
+            <button
+              key={fx.id}
+              type="button"
+              onClick={() => onUpdateDspEffect(fx.id)}
+              className={`py-1.5 px-2 rounded-xl text-[11px] font-medium transition-all cursor-pointer ${
+                dspEffect === fx.id
+                  ? "bg-cyanpulse text-[#050507] shadow-sm"
+                  : "bg-white/[0.06] hover:bg-white/[0.12] text-slate-200"
+              }`}
+            >
+              {fx.label}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );

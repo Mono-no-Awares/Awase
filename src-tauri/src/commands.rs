@@ -27,6 +27,7 @@ pub struct AppState {
     pub cache_dir: PathBuf,
     pub sys: Mutex<System>,
     pub play_seq: AtomicU64,
+    pub saved_window_rect: Mutex<Option<(i32, i32, u32, u32, bool)>>,
 }
 
 #[tauri::command]
@@ -460,6 +461,68 @@ pub fn get_equalizer(state: State<'_, AppState>) -> Result<EqualizerState, Strin
 pub fn set_equalizer(state: State<'_, AppState>, eq_state: EqualizerState) -> Result<(), String> {
     state.db.save_equalizer(&eq_state)?;
     state.engine.update_equalizer(eq_state);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_dsp_effect(state: State<'_, AppState>) -> u8 {
+    state.engine.get_dsp_effect()
+}
+
+#[tauri::command]
+pub fn set_dsp_effect(state: State<'_, AppState>, effect: u8) -> u8 {
+    let clamped = effect.min(2);
+    state.engine.set_dsp_effect(clamped);
+    let _ = state.db.save_setting("dsp_effect", &clamped.to_string());
+    clamped
+}
+
+#[tauri::command]
+pub fn get_crossfade(state: State<'_, AppState>) -> u8 {
+    state.engine.get_crossfade_secs()
+}
+
+#[tauri::command]
+pub fn set_crossfade(state: State<'_, AppState>, secs: u8) -> u8 {
+    let clamped = secs.min(8);
+    state.engine.set_crossfade_secs(clamped);
+    let _ = state.db.save_setting("crossfade_secs", &clamped.to_string());
+    clamped
+}
+
+#[tauri::command]
+pub fn set_mini_player_mode(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    enabled: bool,
+) -> Result<(), String> {
+    let win = app
+        .get_webview_window("main")
+        .ok_or_else(|| "Main window not found".to_string())?;
+    if enabled {
+        let is_max = win.is_maximized().unwrap_or(false);
+        let pos = win.outer_position().map(|p| (p.x, p.y)).unwrap_or((120, 120));
+        let size = win.inner_size().map(|s| (s.width, s.height)).unwrap_or((1240, 780));
+        *state.saved_window_rect.lock() = Some((pos.0, pos.1, size.0, size.1, is_max));
+        if is_max {
+            let _ = win.unmaximize();
+        }
+        let _ = win.set_min_size(Some(tauri::LogicalSize::new(320.0, 86.0)));
+        let _ = win.set_size(tauri::LogicalSize::new(372.0, 96.0));
+        let _ = win.set_always_on_top(true);
+    } else {
+        let _ = win.set_always_on_top(false);
+        let _ = win.set_min_size(Some(tauri::LogicalSize::new(960.0, 620.0)));
+        if let Some((x, y, w, h, was_max)) = state.saved_window_rect.lock().take() {
+            let _ = win.set_size(tauri::PhysicalSize::new(w.max(960), h.max(620)));
+            let _ = win.set_position(tauri::PhysicalPosition::new(x, y));
+            if was_max {
+                let _ = win.maximize();
+            }
+        } else {
+            let _ = win.set_size(tauri::LogicalSize::new(1240.0, 780.0));
+        }
+    }
     Ok(())
 }
 

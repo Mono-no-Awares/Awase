@@ -101,6 +101,16 @@ pub fn run() {
                     providers::yandex::set_yandex_quality(m);
                 }
             }
+            if let Ok(Some(eff)) = db.get_setting("dsp_effect") {
+                if let Ok(m) = eff.parse::<u8>() {
+                    engine.set_dsp_effect(m);
+                }
+            }
+            if let Ok(Some(cf)) = db.get_setting("crossfade_secs") {
+                if let Ok(s) = cf.parse::<u8>() {
+                    engine.set_crossfade_secs(s);
+                }
+            }
             let http = providers::build_http_client();
 
             app.manage(AppState {
@@ -110,6 +120,7 @@ pub fn run() {
                 cache_dir,
                 sys: Mutex::new(System::new()),
                 play_seq: AtomicU64::new(0),
+                saved_window_rect: Mutex::new(None),
             });
 
             if let Some(win) = app.get_webview_window("main") {
@@ -213,6 +224,11 @@ pub fn run() {
             commands::get_telemetry,
             commands::get_equalizer,
             commands::set_equalizer,
+            commands::get_dsp_effect,
+            commands::set_dsp_effect,
+            commands::get_crossfade,
+            commands::set_crossfade,
+            commands::set_mini_player_mode,
             commands::get_audio_devices,
             commands::set_audio_device,
             commands::save_ui_prefs,

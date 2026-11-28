@@ -34,6 +34,7 @@ import { copyTrackShareCard } from "./lib/shareCard";
 import { SourcesView } from "./components/SourcesView";
 import { QueueDrawer } from "./components/QueueDrawer";
 import { EqualizerPopover } from "./components/EqualizerPopover";
+import { MiniPlayer } from "./components/MiniPlayer";
 import { PlayerDock } from "./components/PlayerDock";
 
 const INITIAL_TELEMETRY: AudioTelemetry = {
@@ -118,6 +119,10 @@ function loadPrefs(): AppPreferences {
 export const App: React.FC = () => {
   const [booting, setBooting] = useState(true);
   const [changelogOpen, setChangelogOpen] = useState(false);
+  const [miniPlayer, setMiniPlayer] = useState(false);
+  const [dspEffect, setDspEffect] = useState(0);
+  const [crossfadeSecs, setCrossfadeSecs] = useState(0);
+  const crossfadeTriggeredRef = useRef<string | null>(null);
   const [preferences, setPreferences] = useState<AppPreferences>(loadPrefs);
   const [activeView, setActiveView] = useState<ActiveView>("stage");
   const [sourceFilter, setSourceFilter] = useState<SourceKind | "all" | "liked">("liked");
@@ -303,6 +308,8 @@ export const App: React.FC = () => {
       })
       .catch(() => {});
     api.getEqualizer().then(setEqState).catch(() => {});
+    api.getDspEffect().then(setDspEffect).catch(() => {});
+    api.getCrossfade().then(setCrossfadeSecs).catch(() => {});
     api.getTelemetry().then(setTelemetry).catch(() => {});
   }, [refreshLibrary]);
 
@@ -959,6 +966,58 @@ export const App: React.FC = () => {
     [playlists, selectedPlaylistId]
   );
 
+  useEffect(() => {
+    if (eqOpen) {
+      api.getDspEffect().then(setDspEffect).catch(() => {});
+    }
+  }, [eqOpen]);
+
+  useEffect(() => {
+    if (!telemetry.isPlaying || !currentTrack || crossfadeSecs <= 0) return;
+    if (currentTrack.source === "spotify") return;
+    const dur = telemetry.durationMs || currentTrack.durationMs || 0;
+    const cfMs = crossfadeSecs * 1000;
+    if (dur <= cfMs + 2500) return;
+    const remaining = dur - telemetry.positionMs;
+    if (remaining > 200 && remaining <= cfMs) {
+      if (crossfadeTriggeredRef.current !== currentTrack.id) {
+        crossfadeTriggeredRef.current = currentTrack.id;
+        handleNextRef.current();
+      }
+    }
+  }, [telemetry.positionMs, telemetry.durationMs, telemetry.isPlaying, currentTrack?.id, currentTrack?.source, crossfadeSecs]);
+
+  useEffect(() => {
+    if (!currentTrack || currentTrack.id !== crossfadeTriggeredRef.current) {
+      if (currentTrack && telemetry.positionMs < 2000) {
+        crossfadeTriggeredRef.current = null;
+      }
+    }
+  }, [currentTrack?.id, telemetry.positionMs]);
+
+  const toggleMiniPlayer = useCallback(async (next: boolean) => {
+    try {
+      await api.setMiniPlayerMode(next);
+      setMiniPlayer(next);
+    } catch {}
+  }, []);
+
+  if (miniPlayer) {
+    return (
+      <MiniPlayer
+        language={preferences.language}
+        currentTrack={currentTrack}
+        telemetry={telemetry}
+        coverPalette={coverPalette}
+        onTogglePlay={handleTogglePlay}
+        onPrev={handlePrev}
+        onNext={() => void handleNext()}
+        onToggleLike={handleToggleLike}
+        onExpand={() => void toggleMiniPlayer(false)}
+      />
+    );
+  }
+
   return (
     <div className="h-screen w-screen flex flex-col bg-[#050507] text-[#F1F5F9] overflow-hidden relative">
       <div
@@ -1000,6 +1059,7 @@ export const App: React.FC = () => {
         onToggleGamingMode={() =>
           setPreferences((prev) => ({ ...prev, gamingMode: !prev.gamingMode }))
         }
+        onOpenMiniPlayer={() => void toggleMiniPlayer(true)}
       />
 
       <div
@@ -1469,9 +1529,14 @@ export const App: React.FC = () => {
         open={eqOpen}
         language={preferences.language}
         eqState={eqState}
+        dspEffect={dspEffect}
         onUpdate={async (next) => {
           setEqState(next);
           await api.setEqualizer(next).catch(() => {});
+        }}
+        onUpdateDspEffect={(eff) => {
+          setDspEffect(eff);
+          api.setDspEffect(eff).catch(() => {});
         }}
         onClose={() => setEqOpen(false)}
       />

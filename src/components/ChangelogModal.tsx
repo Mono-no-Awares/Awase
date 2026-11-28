@@ -11,6 +11,10 @@ interface ChangelogModalProps {
 
 const ITEMS_RU = [
   {
+    title: "Slowed + Reverb, Nightcore, Crossfade и Мини-плеер",
+    desc: "DSP-эффекты в реальном времени прямо в эквалайзере, плавный Crossfade (0–8 сек) между треками и компактный плавающий мини-плеер поверх всех окон.",
+  },
+  {
     title: "Умная библиотека без лишних вкладок",
     desc: "Убрана вкладка All — в библиотеке отображаются только подключённые сервисы, а если ничего не добавлено, появляется быстрая карточка для подключения.",
   },
@@ -33,6 +37,10 @@ const ITEMS_RU = [
 ];
 
 const ITEMS_EN = [
+  {
+    title: "Slowed + Reverb, Nightcore, Crossfade & Mini-Player",
+    desc: "Real-time DSP effects right inside the equalizer, smooth 0–8s track Crossfade, and a floating Always-on-Top Mini-Player.",
+  },
   {
     title: "Smart, Clutter-Free Library",
     desc: "Removed the All tab — only connected sources are shown in the library, with a one-click prompt to connect services when empty.",

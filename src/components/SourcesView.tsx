@@ -105,10 +105,14 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
   const [scHandle, setScHandle] = useState("");
   const [ruBypass, setRuBypass] = useState<[number, boolean]>([1, false]);
   const [yandexQuality, setYandexQuality] = useState<number>(1);
+  const [dspEffect, setDspEffect] = useState<number>(0);
+  const [crossfadeSecs, setCrossfadeSecs] = useState<number>(0);
 
   useEffect(() => {
     api.getRuBypassStatus().then(setRuBypass).catch(() => {});
     api.getYandexQuality().then(setYandexQuality).catch(() => {});
+    api.getDspEffect().then(setDspEffect).catch(() => {});
+    api.getCrossfade().then(setCrossfadeSecs).catch(() => {});
   }, []);
 
   const [cacheStats, setCacheStats] = useState<CacheStats | null>(null);
@@ -1384,6 +1388,66 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
                 }}
               />
             ))}
+          </div>
+
+          <div className="pt-2 border-t border-white/[0.08] space-y-2">
+            <label className="block text-xs font-medium text-slate-300">
+              {preferences.language === "ru" ? "DSP-эффекты на лету" : "Real-time DSP Effects"}
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { id: 0, label: preferences.language === "ru" ? "Обычный" : "Normal" },
+                { id: 1, label: "Slowed + Reverb" },
+                { id: 2, label: "Nightcore" },
+              ].map((fx) => (
+                <button
+                  key={fx.id}
+                  type="button"
+                  onClick={() => {
+                    api.setDspEffect(fx.id).then(setDspEffect).catch(() => {});
+                  }}
+                  className={`py-2 px-3 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
+                    dspEffect === fx.id
+                      ? "bg-white text-[#050507]"
+                      : "bg-black/40 text-slate-200 hover:bg-white/[0.09]"
+                  }`}
+                >
+                  {fx.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-white/[0.08] space-y-2">
+            <label className="block text-xs font-medium text-slate-300">
+              {preferences.language === "ru"
+                ? "Crossfade (плавный переход между треками)"
+                : "Crossfade (smooth track transition)"}
+            </label>
+            <div className="grid grid-cols-5 gap-1.5">
+              {[
+                { s: 0, label: preferences.language === "ru" ? "Выкл" : "Off" },
+                { s: 2, label: preferences.language === "ru" ? "2 сек" : "2s" },
+                { s: 4, label: preferences.language === "ru" ? "4 сек" : "4s" },
+                { s: 6, label: preferences.language === "ru" ? "6 сек" : "6s" },
+                { s: 8, label: preferences.language === "ru" ? "8 сек" : "8s" },
+              ].map((opt) => (
+                <button
+                  key={opt.s}
+                  type="button"
+                  onClick={() => {
+                    api.setCrossfade(opt.s).then(setCrossfadeSecs).catch(() => {});
+                  }}
+                  className={`py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
+                    crossfadeSecs === opt.s
+                      ? "bg-white text-[#050507]"
+                      : "bg-black/40 text-slate-200 hover:bg-white/[0.09]"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}

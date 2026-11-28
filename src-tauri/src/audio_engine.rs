@@ -2,7 +2,7 @@ use std::f32::consts::PI;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicU8, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError, Sender, SyncSender};
 use std::sync::Arc;
 use std::time::Duration;
@@ -141,8 +141,91 @@ impl BiquadState {
     }
 }
 
+struct CombFilter {
+    buf: Vec<f32>,
+    idx: usize,
+    filter_store: f32,
+}
+
+impl CombFilter {
+    fn new(size: usize) -> Self {
+        Self {
+            buf: vec![0.0; size.max(64)],
+            idx: 0,
+            filter_store: 0.0,
+        }
+    }
+
+    #[inline]
+    fn process(&mut self, input: f32, feedback: f32, damp: f32) -> f32 {
+        let out = self.buf[self.idx];
+        self.filter_store = out * (1.0 - damp) + self.filter_store * damp;
+        self.buf[self.idx] = input + self.filter_store * feedback;
+        self.idx += 1;
+        if self.idx >= self.buf.len() {
+            self.idx = 0;
+        }
+        out
+    }
+
+    fn clear(&mut self) {
+        self.buf.fill(0.0);
+        self.filter_store = 0.0;
+    }
+}
+
+struct StereoReverb {
+    combs: [[CombFilter; 4]; 2],
+}
+
+impl StereoReverb {
+    fn new(sr: f32) -> Self {
+        let scale = (sr / 44100.0).clamp(0.5, 4.0);
+        let lens_l = [1117, 1301, 1483, 1667];
+        let lens_r = [1140, 1324, 1506, 1690];
+        let make_bank = |lens: [usize; 4]| -> [CombFilter; 4] {
+            [
+                CombFilter::new((lens[0] as f32 * scale) as usize),
+                CombFilter::new((lens[1] as f32 * scale) as usize),
+                CombFilter::new((lens[2] as f32 * scale) as usize),
+                CombFilter::new((lens[3] as f32 * scale) as usize),
+            ]
+        };
+        Self {
+            combs: [make_bank(lens_l), make_bank(lens_r)],
+        }
+    }
+
+    #[inline]
+    fn process(&mut self, ch: usize, input: f32) -> f32 {
+        let bank = &mut self.combs[ch.min(1)];
+        let mut sum = 0.0f32;
+        for c in bank.iter_mut() {
+            sum += c.process(input, 0.78, 0.34);
+        }
+        sum * 0.22
+    }
+
+    fn clear(&mut self) {
+        for bank in &mut self.combs {
+            for c in bank.iter_mut() {
+                c.clear();
+            }
+        }
+    }
+}
+
+fn dsp_speed_for(effect: u8) -> f32 {
+    match effect {
+        1 => 0.84,
+        2 => 1.18,
+        _ => 1.0,
+    }
+}
+
 struct SharedDspState {
     eq: EqualizerState,
+    dsp_effect: u8,
     ring: [f32; SPECTRUM_RING_SIZE],
     ring_pos: usize,
     rms_left: f32,
@@ -156,6 +239,7 @@ impl Default for SharedDspState {
     fn default() -> Self {
         Self {
             eq: EqualizerState::default(),
+            dsp_effect: 0,
             ring: [0.0; SPECTRUM_RING_SIZE],
             ring_pos: 0,
             rms_left: 0.0,
@@ -172,6 +256,8 @@ struct DspSpectrumSource<S> {
     shared: Arc<Mutex<SharedDspState>>,
     coeffs: [BiquadCoeffs; 5],
     states: [[BiquadState; 5]; 2],
+    reverb: StereoReverb,
+    dsp_effect: u8,
     channel_cursor: u16,
     sample_rate_f: f32,
     acc_l: f32,
@@ -189,13 +275,18 @@ where
 {
     fn new(inner: S, shared: Arc<Mutex<SharedDspState>>) -> Self {
         let sr = inner.sample_rate().max(8000) as f32;
-        let eq = shared.lock().eq.clone();
+        let (eq, dsp_effect) = {
+            let st = shared.lock();
+            (st.eq.clone(), st.dsp_effect)
+        };
         let (coeffs, preamp) = Self::compute_coeffs(sr, &eq);
         Self {
             inner,
             shared,
             coeffs,
             states: [[BiquadState::default(); 5]; 2],
+            reverb: StereoReverb::new(sr),
+            dsp_effect,
             channel_cursor: 0,
             sample_rate_f: sr,
             acc_l: 0.0,
@@ -245,10 +336,15 @@ where
                     let (c, p) = Self::compute_coeffs(self.sample_rate_f, &st.eq);
                     self.coeffs = c;
                     self.preamp = p;
+                    if self.dsp_effect != st.dsp_effect {
+                        self.dsp_effect = st.dsp_effect;
+                        self.reverb.clear();
+                    }
                     st.eq_dirty = false;
                 }
                 if st.seek_fade_pending {
                     self.states = [[BiquadState::default(); 5]; 2];
+                    self.reverb.clear();
                     self.fade_pos = 0;
                     st.seek_fade_pending = false;
                 }
@@ -258,6 +354,10 @@ where
         let mut y = sample * self.preamp;
         for b in 0..5 {
             y = self.states[ch][b].process(y, &self.coeffs[b]);
+        }
+        if self.dsp_effect == 1 {
+            let wet = self.reverb.process(ch, y);
+            y = y * 0.84 + wet * 0.34;
         }
         if self.fade_pos < self.fade_total {
             let gain = self.fade_pos as f32 / self.fade_total.max(1) as f32;
@@ -351,6 +451,7 @@ enum AudioCommand {
     Seek(u64, SyncSender<Result<(), String>>),
     SetVolume(f32),
     SetMuted(bool),
+    SetDspEffect(u8),
     SetDevice(String, SyncSender<Result<(), String>>),
 }
 
@@ -368,6 +469,7 @@ pub struct AudioEngine {
     device_name: Arc<Mutex<String>>,
     volume: Arc<Mutex<f32>>,
     muted: Arc<AtomicBool>,
+    crossfade_secs: Arc<AtomicU8>,
     fft_planner: Mutex<FftPlanner<f32>>,
 }
 
@@ -411,6 +513,7 @@ impl AudioEngine {
         let device_name = Arc::new(Mutex::new(initial_device));
         let volume = Arc::new(Mutex::new(initial_volume.clamp(0.0, 1.0)));
         let muted = Arc::new(AtomicBool::new(initial_muted));
+        let crossfade_secs = Arc::new(AtomicU8::new(0));
 
         let (tx, rx) = mpsc::channel::<AudioCommand>();
 
@@ -426,10 +529,11 @@ impl AudioEngine {
         let device_name_t = Arc::clone(&device_name);
         let volume_t = Arc::clone(&volume);
         let muted_t = Arc::clone(&muted);
+        let crossfade_t = Arc::clone(&crossfade_secs);
 
         std::thread::spawn(move || {
             let mut stream_pair = OutputStream::try_default().ok();
-            let mut active_sink: Option<Sink> = None;
+            let mut active_sink: Option<Arc<Sink>> = None;
             let mut ended_notified = true;
 
             loop {
@@ -487,14 +591,25 @@ impl AudioEngine {
                                     .unwrap_or(known_duration_ms);
                                 let f32_src = decoder.convert_samples::<f32>();
                                 let dsp_src = DspSpectrumSource::new(f32_src, Arc::clone(&shared_t));
+                                let cf_secs = crossfade_t.load(Ordering::Relaxed).min(8) as u64;
                                 if let Some(old) = active_sink.take() {
                                     let cur_vol = old.volume();
-                                    if !old.is_paused() && cur_vol > 0.01 {
-                                        fade_sink(&old, cur_vol, 0.0, 5, 16);
+                                    if cf_secs > 0 && !old.is_paused() && cur_vol > 0.01 {
+                                        let steps = (cf_secs * 25) as u32;
+                                        std::thread::spawn(move || {
+                                            fade_sink(&old, cur_vol, 0.0, steps, 40);
+                                            old.stop();
+                                        });
+                                    } else {
+                                        if !old.is_paused() && cur_vol > 0.01 {
+                                            fade_sink(&old, cur_vol, 0.0, 5, 16);
+                                        }
+                                        old.stop();
                                     }
-                                    old.stop();
                                 }
-                                let sink = Sink::try_new(handle).map_err(|e| e.to_string())?;
+                                let sink = Arc::new(Sink::try_new(handle).map_err(|e| e.to_string())?);
+                                let cur_effect = shared_t.lock().dsp_effect;
+                                sink.set_speed(dsp_speed_for(cur_effect));
                                 let eff_vol = if muted_t.load(Ordering::SeqCst) {
                                     0.0
                                 } else {
@@ -502,7 +617,15 @@ impl AudioEngine {
                                 };
                                 sink.set_volume(0.0);
                                 sink.append(dsp_src);
-                                fade_sink(&sink, 0.0, eff_vol, 5, 14);
+                                if cf_secs > 0 && eff_vol > 0.01 {
+                                    let fade_s = Arc::clone(&sink);
+                                    let steps = (cf_secs * 25) as u32;
+                                    std::thread::spawn(move || {
+                                        fade_sink(&fade_s, 0.0, eff_vol, steps, 40);
+                                    });
+                                } else {
+                                    fade_sink(&sink, 0.0, eff_vol, 5, 14);
+                                }
                                 active_sink = Some(sink);
                                 *current_track_id_t.lock() = Some(track_id);
                                 position_ms_t.store(0, Ordering::SeqCst);
@@ -577,6 +700,11 @@ impl AudioEngine {
                                 s.set_volume(eff);
                             }
                         }
+                        AudioCommand::SetDspEffect(effect) => {
+                            if let Some(s) = active_sink.as_ref() {
+                                s.set_speed(dsp_speed_for(effect));
+                            }
+                        }
                         AudioCommand::SetDevice(name, reply) => {
                             let res = (|| -> Result<(), String> {
                                 let host = cpal::default_host();
@@ -630,6 +758,7 @@ impl AudioEngine {
             device_name,
             volume,
             muted,
+            crossfade_secs,
             fft_planner: Mutex::new(FftPlanner::new()),
         })
     }
@@ -723,6 +852,28 @@ impl AudioEngine {
         let mut st = self.shared.lock();
         st.eq = eq;
         st.eq_dirty = true;
+    }
+
+    pub fn set_dsp_effect(&self, effect: u8) {
+        let clamped = effect.min(2);
+        {
+            let mut st = self.shared.lock();
+            st.dsp_effect = clamped;
+            st.eq_dirty = true;
+        }
+        let _ = self.cmd_tx.lock().send(AudioCommand::SetDspEffect(clamped));
+    }
+
+    pub fn get_dsp_effect(&self) -> u8 {
+        self.shared.lock().dsp_effect
+    }
+
+    pub fn set_crossfade_secs(&self, secs: u8) {
+        self.crossfade_secs.store(secs.min(8), Ordering::Relaxed);
+    }
+
+    pub fn get_crossfade_secs(&self) -> u8 {
+        self.crossfade_secs.load(Ordering::Relaxed)
     }
 
     pub fn get_telemetry(&self) -> AudioTelemetry {

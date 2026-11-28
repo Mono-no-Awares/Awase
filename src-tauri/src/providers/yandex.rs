@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 use md5::{Digest, Md5};
 use parking_lot::Mutex;
@@ -15,6 +16,15 @@ struct WaveSession {
 }
 
 static WAVE_SESSION: Mutex<Option<WaveSession>> = Mutex::new(None);
+static YANDEX_QUALITY_MODE: AtomicU8 = AtomicU8::new(1);
+
+pub fn set_yandex_quality(mode: u8) {
+    YANDEX_QUALITY_MODE.store(mode.min(1), Ordering::Relaxed);
+}
+
+pub fn get_yandex_quality() -> u8 {
+    YANDEX_QUALITY_MODE.load(Ordering::Relaxed)
+}
 
 pub fn load_wave_seen(ids: Vec<String>, last_id: Option<String>) {
     let mut guard = WAVE_SESSION.lock();
@@ -495,12 +505,22 @@ pub async fn resolve_stream_url(
         return Err("Track unavailable on Yandex Music".to_string());
     }
 
+    let q_mode = YANDEX_QUALITY_MODE.load(Ordering::Relaxed);
     options.sort_by(|a, b| {
         let a_mp3 = a.get("codec").and_then(|v| v.as_str()) == Some("mp3");
         let b_mp3 = b.get("codec").and_then(|v| v.as_str()) == Some("mp3");
         let a_br = a.get("bitrateInKbps").and_then(|v| v.as_u64()).unwrap_or(0);
         let b_br = b.get("bitrateInKbps").and_then(|v| v.as_u64()).unwrap_or(0);
-        b_mp3.cmp(&a_mp3).then(b_br.cmp(&a_br))
+        if q_mode == 0 {
+            let a_fast = a_br <= 192;
+            let b_fast = b_br <= 192;
+            b_fast
+                .cmp(&a_fast)
+                .then(b_mp3.cmp(&a_mp3))
+                .then(b_br.cmp(&a_br))
+        } else {
+            b_mp3.cmp(&a_mp3).then(b_br.cmp(&a_br))
+        }
     });
 
     for opt in options {

@@ -117,6 +117,8 @@ export const api = {
     invoke<Track[]>("get_wave_tracks", { source, reset }),
   getRuBypassStatus: () => invoke<[number, boolean]>("get_ru_bypass_status"),
   setRuBypassMode: (mode: number) => invoke<[number, boolean]>("set_ru_bypass_mode", { mode }),
+  getYandexQuality: () => invoke<number>("get_yandex_quality"),
+  setYandexQuality: (mode: number) => invoke<number>("set_yandex_quality", { mode }),
   prefetchTrack: (track: Track) => invoke<void>("prefetch_track", { track }),
   fetchCoverCached: (url: string) => invoke<string>("fetch_cover_cached", { url }),
   getTrackLyrics: (track: Track) => invoke<LyricsPayload>("get_track_lyrics", { track }),

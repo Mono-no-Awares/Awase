@@ -2,15 +2,82 @@ pub mod soundcloud;
 pub mod spotify;
 pub mod yandex;
 
-use std::path::PathBuf;
+use std::collections::HashMap;
+use std::future::Future;
+use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
+use parking_lot::Mutex;
 use reqwest::Client;
+use tokio::sync::watch;
+
+type InFlightTx = watch::Sender<Option<Result<PathBuf, String>>>;
+static IN_FLIGHT: OnceLock<Mutex<HashMap<String, InFlightTx>>> = OnceLock::new();
 
 pub fn build_http_client() -> Client {
     Client::builder()
         .user_agent("Yandex-Music-API")
+        .tcp_nodelay(true)
+        .pool_max_idle_per_host(24)
+        .pool_idle_timeout(std::time::Duration::from_secs(90))
+        .connect_timeout(std::time::Duration::from_secs(6))
         .timeout(std::time::Duration::from_secs(20))
         .build()
         .unwrap_or_else(|_| Client::new())
+}
+
+pub fn sanitize_cache_key(key: &str) -> String {
+    key.chars()
+        .map(|c| if c.is_ascii_alphanumeric() || c == '_' || c == '-' { c } else { '_' })
+        .collect()
+}
+
+pub fn find_cached_track(cache_dir: &Path, cache_key: &str) -> Option<PathBuf> {
+    let safe_key = sanitize_cache_key(cache_key);
+    for ext in ["mp3", "m4a", "aac", "flac", "ogg"] {
+        let p = cache_dir.join(format!("{}.{}", safe_key, ext));
+        if let Ok(meta) = std::fs::metadata(&p) {
+            if meta.len() > 4096 {
+                return Some(p);
+            }
+        }
+    }
+    None
+}
+
+pub async fn run_dedup_download<F>(key: &str, fut: F) -> Result<PathBuf, String>
+where
+    F: Future<Output = Result<PathBuf, String>>,
+{
+    let map = IN_FLIGHT.get_or_init(|| Mutex::new(HashMap::new()));
+    let existing_rx = {
+        let guard = map.lock();
+        guard.get(key).map(|tx| tx.subscribe())
+    };
+
+    if let Some(mut rx) = existing_rx {
+        loop {
+            if let Some(res) = rx.borrow().clone() {
+                return res;
+            }
+            if rx.changed().await.is_err() {
+                break;
+            }
+        }
+    }
+
+    let (tx, _rx) = watch::channel(None);
+    {
+        let mut guard = map.lock();
+        guard.insert(key.to_string(), tx.clone());
+    }
+
+    let res = fut.await;
+    let _ = tx.send(Some(res.clone()));
+    {
+        let mut guard = map.lock();
+        guard.remove(key);
+    }
+    res
 }
 
 pub fn parse_iso_timestamp(s: &str) -> Option<i64> {

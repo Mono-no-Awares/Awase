@@ -581,8 +581,12 @@ export const App: React.FC = () => {
         setCurrentIndex(0);
       }
       const nextAfter = idx >= 0 && idx + 1 < list.length ? list[idx + 1] : null;
+      const nextAfter2 = idx >= 0 && idx + 2 < list.length ? list[idx + 2] : null;
       if (nextAfter) {
-        api.prefetchTrack(nextAfter).catch(() => {});
+        window.setTimeout(() => api.prefetchTrack(nextAfter).catch(() => {}), 150);
+      }
+      if (nextAfter2) {
+        window.setTimeout(() => api.prefetchTrack(nextAfter2).catch(() => {}), 850);
       }
       await startTrackPlayback(track);
     },
@@ -659,7 +663,12 @@ export const App: React.FC = () => {
     currentIndexRef.current = nextIdx;
     setCurrentIndex(nextIdx);
     if (nextIdx + 1 < workingQueue.length) {
-      api.prefetchTrack(workingQueue[nextIdx + 1]).catch(() => {});
+      const n1 = workingQueue[nextIdx + 1];
+      window.setTimeout(() => api.prefetchTrack(n1).catch(() => {}), 150);
+    }
+    if (nextIdx + 2 < workingQueue.length) {
+      const n2 = workingQueue[nextIdx + 2];
+      window.setTimeout(() => api.prefetchTrack(n2).catch(() => {}), 850);
     }
     void startTrackPlayback(chosen);
   }, [repeat, shuffle, activeWave, waveLoading, startTrackPlayback]);
@@ -709,7 +718,10 @@ export const App: React.FC = () => {
         setCurrentIndex(0);
         await startTrackPlayback(waveTracks[0]);
         if (waveTracks.length > 1) {
-          api.prefetchTrack(waveTracks[1]).catch(() => {});
+          window.setTimeout(() => api.prefetchTrack(waveTracks[1]).catch(() => {}), 150);
+        }
+        if (waveTracks.length > 2) {
+          window.setTimeout(() => api.prefetchTrack(waveTracks[2]).catch(() => {}), 850);
         }
       } catch (err) {
         notify(String(err), "error");

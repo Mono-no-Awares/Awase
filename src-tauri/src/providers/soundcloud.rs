@@ -15,6 +15,8 @@ const RANGE_CHUNK_SIZE: usize = 14336;
 
 static RU_BYPASS_MODE: AtomicU8 = AtomicU8::new(1);
 static RU_TRIPPED: AtomicBool = AtomicBool::new(false);
+static CACHED_CLIENT_ID: std::sync::OnceLock<parking_lot::Mutex<Option<String>>> =
+    std::sync::OnceLock::new();
 
 pub fn set_ru_tripped(tripped: bool) {
     RU_TRIPPED.store(tripped, Ordering::Relaxed);
@@ -35,8 +37,15 @@ pub fn get_ru_bypass_state() -> (u8, bool) {
 }
 
 pub async fn resolve_client_id(client: &Client, cached: Option<&str>) -> Result<String, String> {
+    let mem = CACHED_CLIENT_ID.get_or_init(|| parking_lot::Mutex::new(None));
+    if let Some(ref cid) = *mem.lock() {
+        if !cid.trim().is_empty() {
+            return Ok(cid.clone());
+        }
+    }
     if let Some(cid) = cached {
         if !cid.trim().is_empty() {
+            *mem.lock() = Some(cid.to_string());
             return Ok(cid.to_string());
         }
     }
@@ -937,7 +946,7 @@ async fn download_via_range_chunks(client: &Client, url: &str) -> Result<Vec<u8>
     let mut result = vec![0u8; total];
     result[..first_bytes.len()].copy_from_slice(&first_bytes);
 
-    let sem = std::sync::Arc::new(tokio::sync::Semaphore::new(8));
+    let sem = std::sync::Arc::new(tokio::sync::Semaphore::new(12));
     let mut set = tokio::task::JoinSet::new();
     for (s, e) in ranges {
         let c = client.clone();
@@ -1088,7 +1097,7 @@ async fn download_resolved_stream(
 
     let total_segs = seg_urls.len();
     let mut seg_buffers: Vec<Option<Vec<u8>>> = vec![None; total_segs];
-    let sem = std::sync::Arc::new(tokio::sync::Semaphore::new(5));
+    let sem = std::sync::Arc::new(tokio::sync::Semaphore::new(8));
     let mut set = tokio::task::JoinSet::new();
     for (idx, seg) in seg_urls.into_iter().enumerate() {
         let c = client.clone();

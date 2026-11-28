@@ -104,9 +104,11 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
   const [scToken, setScToken] = useState("");
   const [scHandle, setScHandle] = useState("");
   const [ruBypass, setRuBypass] = useState<[number, boolean]>([1, false]);
+  const [yandexQuality, setYandexQuality] = useState<number>(1);
 
   useEffect(() => {
     api.getRuBypassStatus().then(setRuBypass).catch(() => {});
+    api.getYandexQuality().then(setYandexQuality).catch(() => {});
   }, []);
 
   const [cacheStats, setCacheStats] = useState<CacheStats | null>(null);
@@ -1304,6 +1306,47 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
               onChange={onSelectDevice}
               icon={<IconDevice size={15} />}
             />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-300 mb-1.5">
+              {preferences.language === "ru"
+                ? "Приоритет качества Яндекс Музыки"
+                : "Yandex Music Stream Quality"}
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                {
+                  id: 1,
+                  label:
+                    preferences.language === "ru"
+                      ? "Высокое (320 kbps)"
+                      : "High (320 kbps)",
+                },
+                {
+                  id: 0,
+                  label:
+                    preferences.language === "ru"
+                      ? "Быстрое (192 kbps)"
+                      : "Fast (192 kbps)",
+                },
+              ].map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => {
+                    api.setYandexQuality(opt.id).then(setYandexQuality).catch(() => {});
+                  }}
+                  className={`py-2 px-3 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
+                    yandexQuality === opt.id
+                      ? "bg-white text-[#050507]"
+                      : "bg-black/40 text-slate-200 hover:bg-white/[0.09]"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5">

@@ -96,6 +96,11 @@ pub fn run() {
             if db.get_setting("sc_ru_tripped").ok().flatten().as_deref() == Some("true") {
                 providers::soundcloud::set_ru_tripped(true);
             }
+            if let Ok(Some(ym_q)) = db.get_setting("yandex_quality") {
+                if let Ok(m) = ym_q.parse::<u8>() {
+                    providers::yandex::set_yandex_quality(m);
+                }
+            }
             let http = providers::build_http_client();
 
             app.manage(AppState {
@@ -237,6 +242,8 @@ pub fn run() {
             commands::get_wave_tracks,
             commands::get_ru_bypass_status,
             commands::set_ru_bypass_mode,
+            commands::get_yandex_quality,
+            commands::set_yandex_quality,
             commands::prefetch_track,
             commands::fetch_cover_cached,
             commands::get_track_lyrics,

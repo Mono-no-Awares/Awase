@@ -325,40 +325,45 @@ pub async fn play_track(app: AppHandle, state: State<'_, AppState>, track: Track
             tauri::async_runtime::spawn(async move {
                 yandex::send_wave_feedback(&fb_client, &fb_token, "trackStarted", Some(&fb_ext), None).await;
             });
-            let (stream_url, _, ext) =
-                yandex::resolve_stream_url(&state.http, &token, &track.external_id).await?;
-            if state.play_seq.load(Ordering::SeqCst) != seq {
-                return Ok(());
+            if let Some(cached_path) = providers::find_cached_track(&state.cache_dir, &track.id) {
+                cached_path
+            } else {
+                let http = state.http.clone();
+                let cache_dir = state.cache_dir.clone();
+                let tid = track.id.clone();
+                let ext_id = track.external_id.clone();
+                providers::run_dedup_download(&track.id, async move {
+                    let (stream_url, _, ext) =
+                        yandex::resolve_stream_url(&http, &token, &ext_id).await?;
+                    providers::download_to_cache(&http, &cache_dir, &tid, &ext, &stream_url, None)
+                        .await
+                })
+                .await?
             }
-            providers::download_to_cache(
-                &state.http,
-                &state.cache_dir,
-                &track.id,
-                &ext,
-                &stream_url,
-                None,
-            )
-            .await?
         }
         SourceKind::SoundCloud => {
-            let creds = state.db.get_credentials(SourceKind::SoundCloud)?;
-            let cached_cid = creds.as_ref().and_then(|c| c.1.as_deref());
-            let cid = soundcloud::resolve_client_id(&state.http, cached_cid).await?;
-            let _ = state
-                .db
-                .save_credentials(SourceKind::SoundCloud, None, Some(&cid), None, None);
-            let out = soundcloud::resolve_and_download(
-                &state.http,
-                &state.cache_dir,
-                &cid,
-                &track.external_id,
-                &track.id,
-            )
-            .await?;
-            if soundcloud::get_ru_bypass_state().1 {
-                let _ = state.db.save_setting("sc_ru_tripped", "true");
+            if let Some(cached_path) = providers::find_cached_track(&state.cache_dir, &track.id) {
+                cached_path
+            } else {
+                let creds = state.db.get_credentials(SourceKind::SoundCloud)?;
+                let cached_cid = creds.as_ref().and_then(|c| c.1.clone());
+                let http = state.http.clone();
+                let cache_dir = state.cache_dir.clone();
+                let db = Arc::clone(&state.db);
+                let tid = track.id.clone();
+                let ext_id = track.external_id.clone();
+                providers::run_dedup_download(&track.id, async move {
+                    let cid = soundcloud::resolve_client_id(&http, cached_cid.as_deref()).await?;
+                    let _ = db.save_credentials(SourceKind::SoundCloud, None, Some(&cid), None, None);
+                    let out = soundcloud::resolve_and_download(&http, &cache_dir, &cid, &ext_id, &tid)
+                        .await?;
+                    if soundcloud::get_ru_bypass_state().1 {
+                        let _ = db.save_setting("sc_ru_tripped", "true");
+                    }
+                    Ok(out)
+                })
+                .await?
             }
-            out
         }
         SourceKind::Spotify => unreachable!(),
     };
@@ -367,9 +372,14 @@ pub async fn play_track(app: AppHandle, state: State<'_, AppState>, track: Track
         return Ok(());
     }
 
-    state
-        .engine
-        .play_file(&track.id, file_path, track.duration_ms, &codec_label, bitrate)
+    let engine = Arc::clone(&state.engine);
+    let track_id = track.id.clone();
+    let dur_ms = track.duration_ms;
+    tokio::task::spawn_blocking(move || {
+        engine.play_file(&track_id, file_path, dur_ms, &codec_label, bitrate)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -1485,18 +1495,21 @@ pub async fn get_wave_tracks(
 
 #[tauri::command]
 pub async fn prefetch_track(state: State<'_, AppState>, track: Track) -> Result<(), String> {
+    if providers::find_cached_track(&state.cache_dir, &track.id).is_some() {
+        return Ok(());
+    }
     match track.source {
         SourceKind::SoundCloud => {
             let creds = state.db.get_credentials(SourceKind::SoundCloud)?;
-            let cached_cid = creds.as_ref().and_then(|c| c.1.as_deref());
-            let cid = soundcloud::resolve_client_id(&state.http, cached_cid).await?;
-            let _ = soundcloud::resolve_and_download(
-                &state.http,
-                &state.cache_dir,
-                &cid,
-                &track.external_id,
-                &track.id,
-            )
+            let cached_cid = creds.as_ref().and_then(|c| c.1.clone());
+            let http = state.http.clone();
+            let cache_dir = state.cache_dir.clone();
+            let tid = track.id.clone();
+            let ext_id = track.external_id.clone();
+            let _ = providers::run_dedup_download(&track.id, async move {
+                let cid = soundcloud::resolve_client_id(&http, cached_cid.as_deref()).await?;
+                soundcloud::resolve_and_download(&http, &cache_dir, &cid, &ext_id, &tid).await
+            })
             .await?;
         }
         SourceKind::Yandex => {
@@ -1505,16 +1518,16 @@ pub async fn prefetch_track(state: State<'_, AppState>, track: Track) -> Result<
                 .get_credentials(SourceKind::Yandex)?
                 .and_then(|c| c.0)
                 .ok_or_else(|| "Not connected".to_string())?;
-            let (stream_url, _, ext) =
-                yandex::resolve_stream_url(&state.http, &token, &track.external_id).await?;
-            let _ = providers::download_to_cache(
-                &state.http,
-                &state.cache_dir,
-                &track.id,
-                &ext,
-                &stream_url,
-                None,
-            )
+            let http = state.http.clone();
+            let cache_dir = state.cache_dir.clone();
+            let tid = track.id.clone();
+            let ext_id = track.external_id.clone();
+            let _ = providers::run_dedup_download(&track.id, async move {
+                let (stream_url, _, ext) =
+                    yandex::resolve_stream_url(&http, &token, &ext_id).await?;
+                providers::download_to_cache(&http, &cache_dir, &tid, &ext, &stream_url, None)
+                    .await
+            })
             .await?;
         }
         _ => {}
@@ -1592,6 +1605,18 @@ pub fn set_ru_bypass_mode(state: State<'_, AppState>, mode: u8) -> (u8, bool) {
         let _ = state.db.save_setting("sc_ru_tripped", "false");
     }
     soundcloud::get_ru_bypass_state()
+}
+
+#[tauri::command]
+pub fn get_yandex_quality() -> u8 {
+    yandex::get_yandex_quality()
+}
+
+#[tauri::command]
+pub fn set_yandex_quality(state: State<'_, AppState>, mode: u8) -> u8 {
+    yandex::set_yandex_quality(mode);
+    let _ = state.db.save_setting("yandex_quality", &mode.to_string());
+    yandex::get_yandex_quality()
 }
 
 #[derive(serde::Serialize)]

@@ -79,6 +79,7 @@ export const TRANSLATIONS: Record<
     vizAura: string;
     vizSilk: string;
     vizOrbital: string;
+    vizLiquid: string;
     clickToSetup: string;
     selectMode: string;
     cancelSelect: string;
@@ -205,6 +206,7 @@ export const TRANSLATIONS: Record<
     vizAura: "Аура",
     vizSilk: "Шёлк",
     vizOrbital: "Орбита",
+    vizLiquid: "Жидкий шёлк",
     clickToSetup: "Нажмите для настройки",
     selectMode: "Выбрать",
     cancelSelect: "Отмена",
@@ -332,6 +334,7 @@ export const TRANSLATIONS: Record<
     vizAura: "Aura",
     vizSilk: "Silk",
     vizOrbital: "Orbital",
+    vizLiquid: "Liquid Aurora",
     clickToSetup: "Click to setup",
     selectMode: "Select",
     cancelSelect: "Cancel",

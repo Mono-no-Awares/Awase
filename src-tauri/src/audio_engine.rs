@@ -267,6 +267,8 @@ struct DspSpectrumSource<S> {
     fade_pos: u32,
     fade_total: u32,
     preamp: f32,
+    spatial_phase: f32,
+    spatial_lp: [f32; 2],
 }
 
 impl<S> DspSpectrumSource<S>
@@ -296,6 +298,8 @@ where
             fade_pos: 0,
             fade_total: (sr * 0.015) as u32,
             preamp,
+            spatial_phase: 0.0,
+            spatial_lp: [0.0; 2],
         }
     }
 
@@ -339,12 +343,14 @@ where
                     if self.dsp_effect != st.dsp_effect {
                         self.dsp_effect = st.dsp_effect;
                         self.reverb.clear();
+                        self.spatial_lp = [0.0; 2];
                     }
                     st.eq_dirty = false;
                 }
                 if st.seek_fade_pending {
                     self.states = [[BiquadState::default(); 5]; 2];
                     self.reverb.clear();
+                    self.spatial_lp = [0.0; 2];
                     self.fade_pos = 0;
                     st.seek_fade_pending = false;
                 }
@@ -358,6 +364,27 @@ where
         if self.dsp_effect == 1 {
             let wet = self.reverb.process(ch, y);
             y = y * 0.84 + wet * 0.34;
+        } else if self.dsp_effect == 3 {
+            if self.channel_cursor % channels == 0 {
+                let step = std::f32::consts::TAU * 0.14 / self.sample_rate_f;
+                self.spatial_phase = (self.spatial_phase + step) % std::f32::consts::TAU;
+            }
+            let pan = self.spatial_phase.sin();
+            let depth = self.spatial_phase.cos();
+            let angle = (pan + 1.0) * 0.25 * std::f32::consts::PI;
+            let pan_gain = if ch == 0 {
+                0.22 + 0.78 * angle.cos()
+            } else {
+                0.22 + 0.78 * angle.sin()
+            };
+            let lp_alpha = if depth < 0.0 {
+                0.32 + 0.68 * (1.0 + depth)
+            } else {
+                1.0
+            };
+            self.spatial_lp[ch] += lp_alpha * (y - self.spatial_lp[ch]);
+            let wet = self.reverb.process(ch, self.spatial_lp[ch]);
+            y = self.spatial_lp[ch] * pan_gain * 0.88 + wet * 0.22;
         }
         if self.fade_pos < self.fade_total {
             let gain = self.fade_pos as f32 / self.fade_total.max(1) as f32;
@@ -855,7 +882,7 @@ impl AudioEngine {
     }
 
     pub fn set_dsp_effect(&self, effect: u8) {
-        let clamped = effect.min(2);
+        let clamped = effect.min(3);
         {
             let mut st = self.shared.lock();
             st.dsp_effect = clamped;

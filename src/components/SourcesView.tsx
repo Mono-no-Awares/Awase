@@ -1394,11 +1394,12 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
             <label className="block text-xs font-medium text-slate-300">
               {preferences.language === "ru" ? "DSP-эффекты на лету" : "Real-time DSP Effects"}
             </label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               {[
                 { id: 0, label: preferences.language === "ru" ? "Обычный" : "Normal" },
                 { id: 1, label: "Slowed + Reverb" },
                 { id: 2, label: "Nightcore" },
+                { id: 3, label: "8D Audio" },
               ].map((fx) => (
                 <button
                   key={fx.id}
@@ -1459,7 +1460,7 @@ export const SourcesView: React.FC<SourcesViewProps> = ({
             <div className="font-display font-semibold text-sm text-white">
               Awase{" "}
               <span className="text-xs font-normal text-slate-300">
-                v{updateInfo?.currentVersion ?? "0.2.5"}
+                v{updateInfo?.currentVersion ?? "0.2.6"}
               </span>
             </div>
             <div className="text-xs text-slate-300 mt-0.5">

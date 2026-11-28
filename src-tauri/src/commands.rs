@@ -471,7 +471,7 @@ pub fn get_dsp_effect(state: State<'_, AppState>) -> u8 {
 
 #[tauri::command]
 pub fn set_dsp_effect(state: State<'_, AppState>, effect: u8) -> u8 {
-    let clamped = effect.min(2);
+    let clamped = effect.min(3);
     state.engine.set_dsp_effect(clamped);
     let _ = state.db.save_setting("dsp_effect", &clamped.to_string());
     clamped
@@ -507,8 +507,17 @@ pub fn set_mini_player_mode(
         if is_max {
             let _ = win.unmaximize();
         }
-        let _ = win.set_min_size(Some(tauri::LogicalSize::new(320.0, 86.0)));
-        let _ = win.set_size(tauri::LogicalSize::new(372.0, 96.0));
+        let _ = win.set_min_size(Some(tauri::LogicalSize::new(320.0, 68.0)));
+        let _ = win.set_size(tauri::LogicalSize::new(404.0, 78.0));
+        if let Ok(Some(mon)) = win.current_monitor() {
+            let scale = mon.scale_factor();
+            let mon_pos = mon.position();
+            let mon_size = mon.size();
+            let island_w = (404.0 * scale) as i32;
+            let x = mon_pos.x + ((mon_size.width as i32 - island_w) / 2).max(0);
+            let y = mon_pos.y + (14.0 * scale) as i32;
+            let _ = win.set_position(tauri::PhysicalPosition::new(x, y));
+        }
         let _ = win.set_always_on_top(true);
     } else {
         let _ = win.set_always_on_top(false);

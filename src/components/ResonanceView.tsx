@@ -31,6 +31,7 @@ import {
   SourceIcon,
 } from "./AwaseIcons";
 import { VisualizerCanvas } from "./VisualizerCanvas";
+import { LiquidAuroraCanvas } from "./LiquidAuroraCanvas";
 
 interface ResonanceViewProps {
   language: AppLanguage;
@@ -111,6 +112,7 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
   const seekHoldRef = useRef<{ target: number; until: number } | null>(null);
   const [openMenu, setOpenMenu] = useState<"wave" | "style" | "playlist" | null>(null);
   const [coverSrc, setCoverSrc] = useState<string | null>(currentTrack?.coverUrl ?? null);
+  const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
   const menusRef = useRef<HTMLDivElement | null>(null);
   const playlistMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -183,6 +185,11 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
       label: t.vizOrbital,
       desc: language === "ru" ? "Орбитальные частицы" : "Orbital particle field",
     },
+    {
+      id: "liquid",
+      label: t.vizLiquid,
+      desc: language === "ru" ? "Шейдерный фон с реакцией на бас" : "WebGL bass-reactive shader",
+    },
   ];
 
   const waveSources: Array<{ id: WaveSource; label: string }> = [
@@ -201,25 +208,49 @@ export const ResonanceView: React.FC<ResonanceViewProps> = ({
   };
 
   return (
-    <div className="relative isolate h-full min-h-[500px] rounded-3xl overflow-hidden border border-white/[0.08] bg-[#050507] flex flex-col justify-between p-6 awase-view-enter">
+    <div
+      onMouseMove={(e) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          setMousePos({
+            x: (e.clientX - rect.left) / rect.width,
+            y: (e.clientY - rect.top) / rect.height,
+          });
+        }
+      }}
+      onMouseLeave={() => setMousePos(null)}
+      className="relative isolate h-full min-h-[500px] rounded-3xl overflow-hidden border border-white/[0.08] bg-[#050507] flex flex-col justify-between p-6 awase-view-enter"
+    >
       <div
         className="absolute inset-0 pointer-events-none transition-all duration-1000"
         style={{
           background: `radial-gradient(circle at 50% 42%, ${coverPalette.glow}, transparent 64%)`,
-          opacity: telemetry.isPlaying ? 0.78 : 0.28,
+          opacity: visualizerStyle === "liquid" ? 0.25 : telemetry.isPlaying ? 0.78 : 0.28,
         }}
       />
 
       <div className="absolute inset-0 pointer-events-none">
-        <VisualizerCanvas
-          styleMode={visualizerStyle}
-          spectrum={telemetry.spectrum}
-          peak={telemetry.peak}
-          isPlaying={telemetry.isPlaying}
-          accentColor={coverPalette.primary}
-          secondaryColor={coverPalette.secondary}
-          gamingMode={gamingMode}
-        />
+        {visualizerStyle === "liquid" ? (
+          <LiquidAuroraCanvas
+            spectrum={telemetry.spectrum}
+            peak={telemetry.peak}
+            isPlaying={telemetry.isPlaying}
+            accentColor={coverPalette.primary}
+            secondaryColor={coverPalette.secondary}
+            gamingMode={gamingMode}
+            mousePos={mousePos}
+          />
+        ) : (
+          <VisualizerCanvas
+            styleMode={visualizerStyle}
+            spectrum={telemetry.spectrum}
+            peak={telemetry.peak}
+            isPlaying={telemetry.isPlaying}
+            accentColor={coverPalette.primary}
+            secondaryColor={coverPalette.secondary}
+            gamingMode={gamingMode}
+          />
+        )}
       </div>
 
       <div className="relative z-30 flex flex-wrap items-center justify-between gap-3">

@@ -31,10 +31,13 @@
 ## Features
 
 - **Unified Library** — Combine local lossless folders (`FLAC`, `WAV`, `MP3`, `M4A`, `AAC`, `OGG` with embedded cover art) alongside **Yandex Music**, **Spotify**, and **SoundCloud** in a single high-FPS virtualized library.
-- **Native Rust Audio Engine & 5-Band EQ** — Powered by `rodio` + `symphonia` + `rustfft` with real-time 32-band FFT spectrum telemetry, musical 5-band parametric/shelf equalizer (`60Hz` – `14kHz`) with automatic preamp headroom and 8 presets, and custom output device selection.
-- **Resonance Visualizers** — Three cover-color-reactive Canvas visualizers (**Aura**, **Silk**, **Orbital**) with integrated playback controls and `F11` fullscreen mode.
+- **Native Rust Audio Engine, 5-Band EQ & Real-Time DSP** — Powered by `rodio` + `symphonia` + `rustfft` with real-time 32-band FFT spectrum telemetry, 5-band parametric/shelf equalizer (`60Hz` – `14kHz`) with 8 presets, **Slowed + Reverb**, **Nightcore**, **8D Audio**, and smooth **Crossfade** (`0–8s`).
+- **Resonance Visualizers** — Cover-color-reactive **Aura**, **Silk**, **Orbital**, and WebGL **Liquid Aurora** shader backgrounds with integrated playback controls and `F11` fullscreen mode.
+- **Kinetic Lyrics & Share Card** — Synced word-by-word lyrics with a **Kinetic Lyrics Stage** music-video mode and one-click **Share Card** PNG export.
+- **Dynamic Island + Edge Glow** — Top-centered Always-on-Top floating island with live spectrum bars, hover-reveal controls, and bass-reactive Edge Glow.
+- **Awase Wrapped & Interactive Galaxy Map** — Listening stats (`This Week` / `All Time`) plus an interactive constellation map of your library where you can pan, zoom, and click any star to play.
 - **Spotify Premium SDK & Native SoundCloud HLS/fMP4** — Direct Spotify Premium playback via official Web Playback SDK (`>100` track playlists, likes & `.csv`/`.json` import), plus native Rust MPEG-TS & fMP4-to-ADTS-AAC demuxing and built-in RU ISP bypass for SoundCloud streams.
-- **Cover-Adaptive & Custom Themes** — Pure OLED obsidian interface that adapts accents to the current track's album art, or lets you pick custom accent/background colors, typography, and motion presets (`Fluid`, `Snappy`, `Silk`).
+- **Cover-Adaptive OLED Theme** — Pure OLED obsidian interface (`#050507`) that adapts accents to the current track's album art, with custom typography and motion presets (`Fluid`, `Snappy`, `Silk`).
 - **Discord Rich Presence** — Native Windows Named Pipe IPC (`Listening to ...`) with track title, artist, cover art, and live progress bar (toggleable in Settings).
 - **Gaming Mode & System Tray** — One-click **Gaming Mode** disables canvas rendering & view animations and throttles telemetry for minimal background RAM/CPU. Closing the window minimizes smoothly to the Windows system tray.
 - **Full Settings Backup** — Export and import your UI preferences, EQ curve, local folders, playlists, and connected tokens as a single `.json` file.

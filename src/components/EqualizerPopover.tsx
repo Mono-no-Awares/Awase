@@ -176,11 +176,12 @@ export const EqualizerPopover: React.FC<EqualizerPopoverProps> = ({
         <div className="text-[11px] font-medium text-slate-300">
           {language === "ru" ? "DSP-эффекты на лету" : "Real-time DSP Effects"}
         </div>
-        <div className="grid grid-cols-3 gap-1.5">
+        <div className="grid grid-cols-2 gap-1.5">
           {[
             { id: 0, label: language === "ru" ? "Обычный" : "Normal" },
             { id: 1, label: "Slowed + Reverb" },
             { id: 2, label: "Nightcore" },
+            { id: 3, label: "8D Audio" },
           ].map((fx) => (
             <button
               key={fx.id}

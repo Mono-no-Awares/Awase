@@ -74,6 +74,7 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
   const [scrubMs, setScrubMs] = useState<number | null>(null);
   const [coverSrc, setCoverSrc] = useState<string | null>(currentTrack?.coverUrl ?? null);
   const [smoothPosMs, setSmoothPosMs] = useState(telemetry.positionMs);
+  const [kineticMode, setKineticMode] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const lineRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const syncRef = useRef({ pos: telemetry.positionMs, ts: performance.now() });
@@ -225,6 +226,29 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
         </button>
 
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setKineticMode((k) => !k)}
+            style={
+              kineticMode
+                ? {
+                    backgroundColor: `${coverPalette.primary}24`,
+                    borderColor: `${coverPalette.primary}66`,
+                    boxShadow: `0 0 18px -4px ${coverPalette.glow}`,
+                  }
+                : undefined
+            }
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border backdrop-blur-xl text-[11px] font-medium transition-all duration-200 active:scale-95 cursor-pointer ${
+              kineticMode
+                ? "text-white"
+                : "bg-black/45 hover:bg-white/[0.1] border-white/[0.08] text-slate-200 hover:text-white"
+            }`}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+            </svg>
+            <span>{language === "ru" ? "Кинетика" : "Kinetic"}</span>
+          </button>
           {currentTrack && onShareCard && (
             <button
               type="button"
@@ -240,9 +264,7 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
             </button>
           )}
           {lyrics?.synced && (
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.06] border border-white/[0.1] backdrop-blur-xl text-[11px] font-medium text-white/75">
-              <span className="text-white/50 tracking-wide">{lyrics.source}</span>
-              <span className="text-white/20">·</span>
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.06] border border-white/[0.1] backdrop-blur-xl text-[11px] font-medium text-white/75">
               <button
                 type="button"
                 onClick={() => setOffsetMs((o) => o - 250)}
@@ -265,6 +287,222 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
         </div>
       </div>
 
+      {kineticMode ? (
+        <div className="relative z-10 flex-1 min-h-0 flex flex-col items-center justify-between px-8 md:px-16 pb-8 max-w-5xl w-full mx-auto">
+          <div className="flex items-center gap-3.5 px-4 py-2 rounded-full bg-black/40 border border-white/[0.08] backdrop-blur-xl mt-2">
+            <div className="w-8 h-8 rounded-lg overflow-hidden bg-[#0B0D12] shrink-0">
+              {coverSrc ? (
+                <img src={coverSrc} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <SourceIcon source={meta.id} size={18} />
+              )}
+            </div>
+            <div className="min-w-0 max-w-[260px]">
+              <div className="text-xs font-semibold text-white truncate">
+                {currentTrack ? currentTrack.title : t.notPlaying}
+              </div>
+              <div className="text-[11px] text-white/55 truncate">
+                {currentTrack ? currentTrack.artist : t.selectTrack}
+              </div>
+            </div>
+            {currentTrack && (
+              <button
+                type="button"
+                onClick={() => onToggleLike(currentTrack.id)}
+                className={`p-1.5 rounded-full transition-colors cursor-pointer ${
+                  currentTrack.liked ? "text-cyanpulse" : "text-white/60 hover:text-white"
+                }`}
+              >
+                <IconHeart size={15} filled={currentTrack.liked} />
+              </button>
+            )}
+          </div>
+
+          <div className="flex-1 flex flex-col items-center justify-center w-full text-center px-4">
+            {!currentTrack ? (
+              <div className="text-white/45 text-sm">{t.selectTrack}</div>
+            ) : loading ? (
+              <div className="flex flex-col items-center gap-3 text-white/75">
+                <div className="w-8 h-8 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+                <span className="text-xs tracking-wide uppercase text-white/50">
+                  {language === "ru" ? "Поиск текста песни..." : "Searching lyrics..."}
+                </span>
+              </div>
+            ) : lyrics?.instrumental ? (
+              <p className="font-display text-3xl sm:text-4xl font-bold text-white/80">
+                {language === "ru" ? "Инструментальный трек" : "Instrumental track"}
+              </p>
+            ) : errorMsg || !lyrics || lyrics.lines.length === 0 ? (
+              <p className="font-display text-2xl font-semibold text-white/65">
+                {language === "ru"
+                  ? "Текст для этого трека не найден"
+                  : "No lyrics found for this track"}
+              </p>
+            ) : (
+              (() => {
+                const idx = activeIdx >= 0 ? activeIdx : 0;
+                const activeLine = lyrics.lines[idx];
+                const nextLine = lyrics.lines[idx + 1];
+                const hasWordTimestamps = Boolean(
+                  lyrics.synced && activeLine?.words && activeLine.words.length > 0
+                );
+                const tokens = activeLine
+                  ? hasWordTimestamps
+                    ? activeLine.words!.map((w) => w.text)
+                    : activeLine.text.split(/\s+/).filter(Boolean)
+                  : [];
+
+                let lineProgress = 0;
+                const wordWeights = tokens.map((w) => {
+                  const hasPause = /[,;:\u2014)\-]$/.test(w);
+                  return w.length + 0.65 + (hasPause ? 1.8 : 0);
+                });
+                const totalWeight = wordWeights.reduce((a, b) => a + b, 0) || 1;
+
+                if (lyrics.synced && activeLine && activeLine.timeMs !== null && !hasWordTimestamps) {
+                  const nextTm = nextLine?.timeMs ?? null;
+                  const naturalVocalDur = Math.max(700, totalWeight * songMsPerChar);
+                  const gapMs =
+                    nextTm !== null ? Math.max(500, nextTm - activeLine.timeMs) : naturalVocalDur;
+                  const vocalDurMs = Math.min(gapMs * 0.92, naturalVocalDur);
+                  lineProgress = Math.min(
+                    1,
+                    Math.max(0, (effectivePos - activeLine.timeMs) / vocalDurMs)
+                  );
+                }
+
+                let accWeight = 0;
+                const beatScale = telemetry.isPlaying ? 1 + telemetry.peak * 0.06 : 1;
+
+                return (
+                  <div className="space-y-8 max-w-4xl">
+                    <div
+                      className="font-display text-3xl sm:text-5xl lg:text-[54px] font-black leading-[1.2] tracking-[-0.03em] transition-transform duration-150"
+                      style={{ transform: `scale(${beatScale})` }}
+                    >
+                      {tokens.map((word, wIdx) => {
+                        let wPct = 100;
+                        if (lyrics.synced) {
+                          if (hasWordTimestamps && activeLine.words) {
+                            const wMeta = activeLine.words[wIdx];
+                            const nextWordStart = activeLine.words[wIdx + 1]?.timeMs;
+                            const fallbackDur = Math.max(180, word.length * songMsPerChar);
+                            const wDur =
+                              wMeta.durationMs ??
+                              (nextWordStart && nextWordStart > wMeta.timeMs
+                                ? nextWordStart - wMeta.timeMs
+                                : fallbackDur);
+                            wPct = Math.min(
+                              100,
+                              Math.max(0, ((effectivePos - wMeta.timeMs) / Math.max(120, wDur)) * 100)
+                            );
+                          } else {
+                            const wStart = accWeight / totalWeight;
+                            const wWeight = wordWeights[wIdx];
+                            accWeight += wWeight;
+                            const wEnd = accWeight / totalWeight;
+                            wPct = Math.min(
+                              100,
+                              Math.max(0, ((lineProgress - wStart) / (wEnd - wStart)) * 100)
+                            );
+                          }
+                        }
+
+                        const isCurrentWord = wPct > 0.5 && wPct < 99.5;
+                        const isDoneWord = wPct >= 99.5;
+
+                        return (
+                          <span
+                            key={`${idx}-${wIdx}`}
+                            className="inline-block mr-[0.26em] transition-all duration-200"
+                            style={{
+                              color: isDoneWord || isCurrentWord ? "#FFFFFF" : "rgba(255,255,255,0.22)",
+                              transform: isCurrentWord
+                                ? "translateY(-5px) scale(1.12)"
+                                : isDoneWord
+                                  ? "translateY(0px) scale(1)"
+                                  : "translateY(4px) scale(0.95)",
+                              filter: isCurrentWord
+                                ? `drop-shadow(0 0 22px ${coverPalette.primary})`
+                                : isDoneWord
+                                  ? `drop-shadow(0 0 10px ${coverPalette.glow})`
+                                  : "blur(0.6px)",
+                            }}
+                          >
+                            {word}
+                          </span>
+                        );
+                      })}
+                    </div>
+
+                    {nextLine && (
+                      <p className="font-display text-lg sm:text-xl font-semibold text-white/30 tracking-tight transition-opacity duration-300">
+                        {nextLine.text}
+                      </p>
+                    )}
+                  </div>
+                );
+              })()
+            )}
+          </div>
+
+          <div className="w-full max-w-xl rounded-2xl bg-black/45 border border-white/[0.08] backdrop-blur-xl px-5 py-3 space-y-2">
+            <div className="flex items-center gap-3">
+              <span className="text-[11px] font-medium text-white/50 tabular-nums w-9 text-right">
+                {formatDuration(displayPos)}
+              </span>
+              <input
+                type="range"
+                min={0}
+                max={duration || 100}
+                value={Math.min(displayPos, duration || 100)}
+                onChange={(e) => setScrubMs(Number(e.target.value))}
+                onMouseUp={(e) => {
+                  setScrubMs(null);
+                  onSeek(Number(e.currentTarget.value));
+                }}
+                onTouchEnd={(e) => {
+                  setScrubMs(null);
+                  onSeek(Number(e.currentTarget.value));
+                }}
+                aria-label="Seek"
+                className="awase-range flex-1"
+                style={{
+                  background: `linear-gradient(to right, ${coverPalette.primary} ${progress}%, rgba(255,255,255,0.2) ${progress}%)`,
+                  height: "4px",
+                  borderRadius: "9999px",
+                }}
+              />
+              <span className="text-[11px] font-medium text-white/50 tabular-nums w-9">
+                {formatDuration(duration)}
+              </span>
+            </div>
+            <div className="flex items-center justify-center gap-6">
+              <button
+                type="button"
+                onClick={onPrev}
+                className="p-1.5 rounded-full text-white/75 hover:text-white transition-all active:scale-90 cursor-pointer"
+              >
+                <IconPrev size={18} />
+              </button>
+              <button
+                type="button"
+                onClick={onTogglePlay}
+                className="w-10 h-10 rounded-full bg-white text-[#050507] flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-all cursor-pointer"
+              >
+                {telemetry.isPlaying ? <IconPause size={18} /> : <IconPlay size={18} />}
+              </button>
+              <button
+                type="button"
+                onClick={onNext}
+                className="p-1.5 rounded-full text-white/75 hover:text-white transition-all active:scale-90 cursor-pointer"
+              >
+                <IconNext size={18} />
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
       <div className="relative z-10 flex-1 min-h-0 grid grid-cols-1 md:grid-cols-[310px_1fr] lg:grid-cols-[350px_1fr] gap-10 lg:gap-20 px-8 md:px-14 lg:px-20 pb-8 items-center max-w-[1180px] w-full mx-auto">
         <div className="flex flex-col items-center w-full max-w-[350px] mx-auto gap-5">
           <div
@@ -580,6 +818,7 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
           )}
         </div>
       </div>
+      )}
     </div>
   );
 };

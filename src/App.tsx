@@ -287,7 +287,7 @@ export const App: React.FC = () => {
         if (autoCleanDays >= 0) {
           api.cleanupNonFavoriteCache(autoCleanDays).catch(() => {});
         }
-        if (seenVer !== "0.2.5") {
+        if (seenVer !== "0.2.6") {
           window.setTimeout(() => setChangelogOpen(true), 1050);
         }
       });
@@ -1216,6 +1216,9 @@ export const App: React.FC = () => {
             <WrappedView
               language={preferences.language}
               coverPalette={coverPalette}
+              tracks={tracks}
+              currentTrack={currentTrack}
+              onPlayTrack={handlePlayTrack}
             />
           )}
 
@@ -1715,11 +1718,11 @@ export const App: React.FC = () => {
       />
       <ChangelogModal
         open={changelogOpen}
-        version="0.2.5"
+        version="0.2.6"
         language={preferences.language}
         onClose={() => {
           setChangelogOpen(false);
-          setPreferences((prev) => ({ ...prev, lastSeenVersion: "0.2.5" }));
+          setPreferences((prev) => ({ ...prev, lastSeenVersion: "0.2.6" }));
         }}
       />
     </div>
